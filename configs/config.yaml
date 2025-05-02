@@ -1,0 +1,15 @@
+name: go-backend
+version: 1.0.0
+port: 8080
+database:
+  host: localhost
+  port: 5432
+  user: your_username
+  password: your_password
+  dbname: your_database
+logging:
+  level: info
+  format: json
+jwt:
+  secret: "your-super-secret-key-please-change-in-production"
+  expiration: 24h

@@ -1,0 +1,32 @@
+# .air.toml 配置文件
+root = "."
+tmp_dir = "tmp"
+
+[build]
+# 只需要监听 Go 文件的更改
+cmd = "go build -o ./tmp/main.exe ./cmd/server"
+# 二进制文件的路径
+bin = "tmp/main.exe"
+# 自定义二进制文件的运行参数
+full_bin = "./tmp/main.exe"
+# 文件更改时是否发送系统通知
+send_interrupt = true
+# 要监听的文件后缀
+include_ext = ["go", "yaml"]
+# 要监听的目录
+include_dir = ["cmd", "internal", "pkg", "configs"]
+# 要忽略的目录
+exclude_dir = ["tmp", "vendor"]
+# 自定清理旧的二进制文件
+clean_on_exit = true
+
+[log]
+# 显示日志时间
+time = true
+
+[color]
+# 自定义控制台输出颜色
+main = "magenta"
+watcher = "cyan"
+build = "yellow"
+runner = "green"

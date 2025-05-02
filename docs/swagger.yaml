@@ -1,0 +1,998 @@
+basePath: /api/v1
+definitions:
+  handlers.LoginRequest:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    required:
+    - password
+    - username
+    type: object
+  handlers.TokenResponse:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        description: 过期时间（秒）
+        type: integer
+      refresh_token:
+        type: string
+    type: object
+  models.Device:
+    properties:
+      config_json:
+        description: 设备配置(JSON格式)
+        type: string
+      created_at:
+        description: 创建时间
+        type: string
+      deleted_at:
+        description: 删除时间
+        type: string
+      description:
+        description: 设备描述
+        type: string
+      device_type:
+        allOf:
+        - $ref: '#/definitions/models.DeviceType'
+        description: 设备类型
+      id:
+        description: 设备ID
+        type: integer
+      ip:
+        description: IP地址
+        type: string
+      location:
+        description: 设备位置
+        type: string
+      mac:
+        description: MAC地址
+        type: string
+      meta_data:
+        description: 元数据(JSON格式)
+        type: string
+      name:
+        description: 设备名称
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/models.DeviceStatus'
+        description: 设备状态
+      updated_at:
+        description: 更新时间
+        type: string
+      user_id:
+        description: 所属用户ID
+        type: integer
+      vendor:
+        description: 设备厂商
+        type: string
+      version:
+        description: 设备版本
+        type: string
+    type: object
+  models.DeviceStatus:
+    enum:
+    - online
+    - offline
+    - fault
+    type: string
+    x-enum-comments:
+      DeviceStatusFault: 故障
+      DeviceStatusOffline: 离线
+      DeviceStatusOnline: 在线
+    x-enum-varnames:
+    - DeviceStatusOnline
+    - DeviceStatusOffline
+    - DeviceStatusFault
+  models.DeviceType:
+    enum:
+    - user_device
+    - compute_device
+    - network_device
+    type: string
+    x-enum-comments:
+      ComputeDevice: 网络设备(路由器、交换机等)
+      NetworkDevice: 核心网网元
+      UserDevice: 用户设备
+    x-enum-varnames:
+    - UserDevice
+    - ComputeDevice
+    - NetworkDevice
+  models.Link:
+    properties:
+      bandwidth:
+        description: 带宽(bps)
+        type: integer
+      created_at:
+        description: 创建时间
+        type: string
+      delay:
+        description: 延迟(ms)
+        type: integer
+      deleted_at:
+        description: 删除时间
+        type: string
+      description:
+        description: 链路描述
+        type: string
+      id:
+        description: 链路ID
+        type: integer
+      name:
+        description: 链路名称
+        type: string
+      properties:
+        description: 链路属性(JSON格式)
+        type: string
+      source:
+        allOf:
+        - $ref: '#/definitions/models.Node'
+        description: 源节点
+      source_id:
+        description: 源节点ID
+        type: integer
+      status:
+        allOf:
+        - $ref: '#/definitions/models.LinkStatus'
+        description: 链路状态
+      target:
+        allOf:
+        - $ref: '#/definitions/models.Node'
+        description: 目标节点
+      target_id:
+        description: 目标节点ID
+        type: integer
+      updated_at:
+        description: 更新时间
+        type: string
+    type: object
+  models.LinkStatus:
+    enum:
+    - up
+    - down
+    - unknown
+    type: string
+    x-enum-comments:
+      LinkStatusDown: 断开
+      LinkStatusUnknown: 未知
+      LinkStatusUp: 连通
+    x-enum-varnames:
+    - LinkStatusUp
+    - LinkStatusDown
+    - LinkStatusUnknown
+  models.Node:
+    properties:
+      created_at:
+        description: 创建时间
+        type: string
+      deleted_at:
+        description: 删除时间
+        type: string
+      description:
+        description: 节点描述
+        type: string
+      device:
+        allOf:
+        - $ref: '#/definitions/models.Device'
+        description: 关联的设备
+      device_id:
+        description: 关联的设备ID
+        type: integer
+      id:
+        description: 节点ID
+        type: integer
+      name:
+        description: 节点名称
+        type: string
+      node_type:
+        allOf:
+        - $ref: '#/definitions/models.NodeType'
+        description: 节点类型
+      position:
+        description: 节点位置坐标 [x, y]
+        items:
+          type: integer
+        type: array
+      properties:
+        description: 节点属性(JSON格式)
+        type: string
+      updated_at:
+        description: 更新时间
+        type: string
+    type: object
+  models.NodeType:
+    enum:
+    - device
+    - router
+    - switch
+    - host
+    type: string
+    x-enum-comments:
+      NodeTypeDevice: 设备节点
+      NodeTypeHost: 主机节点
+      NodeTypeRouter: 路由器节点
+      NodeTypeSwitch: 交换机节点
+    x-enum-varnames:
+    - NodeTypeDevice
+    - NodeTypeRouter
+    - NodeTypeSwitch
+    - NodeTypeHost
+  models.User:
+    properties:
+      created_at:
+        description: 创建时间
+        type: string
+      deleted_at:
+        description: 删除时间
+        type: string
+      email:
+        description: 电子邮件
+        type: string
+      id:
+        description: 用户ID
+        type: integer
+      role:
+        allOf:
+        - $ref: '#/definitions/models.UserRole'
+        description: 用户角色
+      updated_at:
+        description: 更新时间
+        type: string
+      username:
+        description: 用户名
+        type: string
+    type: object
+  models.UserRole:
+    enum:
+    - admin
+    - user
+    type: string
+    x-enum-comments:
+      RoleAdmin: 管理员
+      RoleUser: 普通用户
+    x-enum-varnames:
+    - RoleAdmin
+    - RoleUser
+  utils.PageResult:
+    properties:
+      current:
+        description: 当前页码
+        type: integer
+      records:
+        description: 记录列表
+      size:
+        description: 每页数量
+        type: integer
+      total:
+        description: 总记录数
+        type: integer
+    type: object
+  utils.Response:
+    properties:
+      code:
+        description: 业务码
+        type: integer
+      data:
+        description: 数据
+      message:
+        description: 消息
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@example.com
+    name: API Support
+    url: http://www.example.com/support
+  description: 网络设备管理系统后端API文档
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: 网络设备管理系统 API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: 用户登录并返回访问令牌和刷新令牌
+      parameters:
+      - description: 登录信息
+        in: body
+        name: loginRequest
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.TokenResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: 用户登录
+      tags:
+      - 认证管理
+  /auth/me:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前登录用户的详细信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.User'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取当前登录用户信息
+      tags:
+      - 认证管理
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: 使用刷新令牌获取新的访问令牌
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.TokenResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 刷新访问令牌
+      tags:
+      - 认证管理
+  /devices:
+    get:
+      consumes:
+      - application/json
+      description: 获取所有设备列表，支持分页和筛选
+      parameters:
+      - description: 页码(默认1)
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量(默认10)
+        in: query
+        name: size
+        type: integer
+      - description: 设备类型筛选
+        in: query
+        name: device_type
+        type: string
+      - description: 设备状态筛选
+        in: query
+        name: status
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  allOf:
+                  - $ref: '#/definitions/utils.PageResult'
+                  - properties:
+                      records:
+                        items:
+                          $ref: '#/definitions/models.Device'
+                        type: array
+                    type: object
+              type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 获取设备列表
+      tags:
+      - 设备管理
+    post:
+      consumes:
+      - application/json
+      description: 创建新的设备
+      parameters:
+      - description: 设备信息
+        in: body
+        name: device
+        required: true
+        schema:
+          $ref: '#/definitions/models.Device'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Device'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建设备
+      tags:
+      - 设备管理
+  /devices/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 删除指定ID的设备
+      parameters:
+      - description: 设备ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除设备
+      tags:
+      - 设备管理
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取设备详细信息
+      parameters:
+      - description: 设备ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Device'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取设备详情
+      tags:
+      - 设备管理
+    put:
+      consumes:
+      - application/json
+      description: 更新设备信息
+      parameters:
+      - description: 设备ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 设备信息
+        in: body
+        name: device
+        required: true
+        schema:
+          $ref: '#/definitions/models.Device'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Device'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新设备
+      tags:
+      - 设备管理
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: 返回API服务的运行状态、版本和时间戳信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: 健康检查接口
+      tags:
+      - 系统监控
+  /network/links:
+    get:
+      consumes:
+      - application/json
+      description: 获取网络拓扑中的所有链路列表
+      parameters:
+      - description: 页码(默认1)
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量(默认10)
+        in: query
+        name: size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  allOf:
+                  - $ref: '#/definitions/utils.PageResult'
+                  - properties:
+                      records:
+                        items:
+                          $ref: '#/definitions/models.Link'
+                        type: array
+                    type: object
+              type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 获取所有链路
+      tags:
+      - 网络管理
+    post:
+      consumes:
+      - application/json
+      description: 在网络拓扑中创建新链路
+      parameters:
+      - description: 链路信息
+        in: body
+        name: link
+        required: true
+        schema:
+          $ref: '#/definitions/models.Link'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Link'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建链路
+      tags:
+      - 网络管理
+  /network/links/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 从网络拓扑中删除链路
+      parameters:
+      - description: 链路ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除链路
+      tags:
+      - 网络管理
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取链路详细信息
+      parameters:
+      - description: 链路ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Link'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取链路详情
+      tags:
+      - 网络管理
+    put:
+      consumes:
+      - application/json
+      description: 更新网络拓扑中的链路信息
+      parameters:
+      - description: 链路ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 链路信息
+        in: body
+        name: link
+        required: true
+        schema:
+          $ref: '#/definitions/models.Link'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Link'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新链路
+      tags:
+      - 网络管理
+  /network/nodes:
+    get:
+      consumes:
+      - application/json
+      description: 获取网络拓扑中的所有节点列表
+      parameters:
+      - description: 页码(默认1)
+        in: query
+        name: current
+        type: integer
+      - description: 每页数量(默认10)
+        in: query
+        name: size
+        type: integer
+      - description: 节点类型筛选
+        in: query
+        name: node_type
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  allOf:
+                  - $ref: '#/definitions/utils.PageResult'
+                  - properties:
+                      records:
+                        items:
+                          $ref: '#/definitions/models.Node'
+                        type: array
+                    type: object
+              type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 获取所有节点
+      tags:
+      - 网络管理
+    post:
+      consumes:
+      - application/json
+      description: 在网络拓扑中创建新节点
+      parameters:
+      - description: 节点信息
+        in: body
+        name: node
+        required: true
+        schema:
+          $ref: '#/definitions/models.Node'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Node'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建节点
+      tags:
+      - 网络管理
+  /network/nodes/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 从网络拓扑中删除节点
+      parameters:
+      - description: 节点ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 删除节点
+      tags:
+      - 网络管理
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取节点详细信息
+      parameters:
+      - description: 节点ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Node'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取节点详情
+      tags:
+      - 网络管理
+    put:
+      consumes:
+      - application/json
+      description: 更新网络拓扑中的节点信息
+      parameters:
+      - description: 节点ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: 节点信息
+        in: body
+        name: node
+        required: true
+        schema:
+          $ref: '#/definitions/models.Node'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.Node'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 更新节点
+      tags:
+      - 网络管理
+  /users:
+    post:
+      consumes:
+      - application/json
+      description: 创建新用户账号
+      parameters:
+      - description: 用户信息
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/models.User'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.User'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 创建新用户
+      tags:
+      - 用户管理
+  /users/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 根据ID获取用户详细信息
+      parameters:
+      - description: 用户ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.User'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取用户信息
+      tags:
+      - 用户管理
+securityDefinitions:
+  ApiKeyAuth:
+    description: 请在此输入 'Bearer {token}' 格式的 JWT token
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
