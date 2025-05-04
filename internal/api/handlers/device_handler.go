@@ -29,6 +29,7 @@ func NewDeviceHandler(deviceService *service.DeviceService) *DeviceHandler {
 // @Security ApiKeyAuth
 // @Param current query int false "页码(默认1)"
 // @Param size query int false "每页数量(默认10)"
+// @Param search query string false "设备名称搜索关键词"
 // @Param device_type query string false "设备类型筛选"
 // @Param status query string false "设备状态筛选"
 // @Success 200 {object} utils.Response{data=utils.PageResult{records=[]models.Device}}
@@ -45,6 +46,9 @@ func (h *DeviceHandler) ListDevices(c *gin.Context) {
 	}
 	if status := c.Query("status"); status != "" {
 		filters["status"] = status
+	}
+	if search := c.Query("search"); search != "" {
+		filters["name"] = search
 	}
 
 	// 获取设备列表

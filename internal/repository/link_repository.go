@@ -58,6 +58,10 @@ func (r *LinkRepository) ListWithPage(offset, limit int, filters map[string]inte
 
 	// 应用过滤条件
 	for key, value := range filters {
+		if key == "name" {
+			query = query.Where("name LIKE ?", "%"+value.(string)+"%")
+			continue
+		}
 		if value != nil && value != "" {
 			query = query.Where(key+" = ?", value)
 		}

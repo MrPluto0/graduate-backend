@@ -30,3 +30,18 @@ type Node struct {
 	Device      *Device    `json:"device,omitempty"`                      // 关联的设备
 	Description string     `json:"description" gorm:"size:500"`           // 节点描述
 }
+
+// NodeStats 表示网络拓扑中的节点的性能指标
+// swagger:model
+type NodeStats struct {
+	ID         uint       `json:"id" gorm:"primarykey,autoIncrement"` // 节点ID
+	CreatedAt  time.Time  `json:"created_at"`                         // 创建时间
+	UpdatedAt  time.Time  `json:"updated_at"`                         // 更新时间
+	DeletedAt  *time.Time `json:"deleted_at,omitempty" gorm:"index"`  // 删除时间
+	Timeslot   uint       `json:"timeslot" gorm:"index;not null"`     // 时间槽（时间戳）
+	NodeID     uint       `json:"node_id" gorm:"index;not null"`      // 关联的节点ID
+	Node       Node       `json:"node" gorm:"foreignKey:NodeID"`      // 关联的节点
+	CPUUsage   float64    `json:"cpu_usage" gorm:"type:decimal(5,2)"` // CPU使用率（百分比）
+	PacketsIn  int64      `json:"packets_in"`                         // 入站数据包数量
+	PacketsOut int64      `json:"packets_out"`                        // 出站数据包数量
+}

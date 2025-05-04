@@ -28,6 +28,7 @@ func NewNetworkHandler(networkService *service.NetworkService) *NetworkHandler {
 // @Security ApiKeyAuth
 // @Param current query int false "页码(默认1)"
 // @Param size query int false "每页数量(默认10)"
+// @Param search query string false "节点名称搜索关键词"
 // @Param node_type query string false "节点类型筛选"
 // @Success 200 {object} utils.Response{data=utils.PageResult{records=[]models.Node}}
 // @Router /network/nodes [get]
@@ -41,6 +42,9 @@ func (h *NetworkHandler) ListNodes(c *gin.Context) {
 	filters := make(map[string]interface{})
 	if nodeType := c.Query("node_type"); nodeType != "" {
 		filters["node_type"] = nodeType
+	}
+	if search := c.Query("search"); search != "" {
+		filters["name"] = search
 	}
 
 	nodes, total, err := h.networkService.ListNodesWithPage(offset, size, filters)
@@ -174,6 +178,7 @@ func (h *NetworkHandler) DeleteNode(c *gin.Context) {
 // @Security ApiKeyAuth
 // @Param current query int false "页码(默认1)"
 // @Param size query int false "每页数量(默认10)"
+// @Param search query string false "链路名称搜索关键词"
 // @Success 200 {object} utils.Response{data=utils.PageResult{records=[]models.Link}}
 // @Router /network/links [get]
 func (h *NetworkHandler) ListLinks(c *gin.Context) {
@@ -182,7 +187,13 @@ func (h *NetworkHandler) ListLinks(c *gin.Context) {
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "10"))
 	offset := (current - 1) * size
 
-	links, total, err := h.networkService.ListLinksWithPage(offset, size, nil)
+	// 构建过滤条件
+	filters := make(map[string]interface{})
+	if search := c.Query("search"); search != "" {
+		filters["name"] = search
+	}
+
+	links, total, err := h.networkService.ListLinks(offset, size, filters)
 	if err != nil {
 		utils.Error(c, utils.ERROR, "获取链路列表失败")
 		return

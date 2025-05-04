@@ -18,14 +18,9 @@ func NewNetworkService(nodeRepo *repository.NodeRepository, linkRepo *repository
 	}
 }
 
-// ListNodes 获取所有节点
-func (s *NetworkService) ListNodes(filters map[string]interface{}) ([]models.Node, error) {
-	return s.nodeRepo.List(filters)
-}
-
-// ListNodesWithPage 分页获取节点列表
-func (s *NetworkService) ListNodesWithPage(offset, limit int, filters map[string]interface{}) ([]models.Node, int64, error) {
-	return s.nodeRepo.ListWithPage(offset, limit, filters)
+// ListNodesWithPage 获取分页的节点列表
+func (s *NetworkService) ListNodesWithPage(offset, size int, filters map[string]interface{}) ([]models.Node, int64, error) {
+	return s.nodeRepo.ListWithPage(offset, size, filters)
 }
 
 // GetNode 获取单个节点
@@ -64,14 +59,9 @@ func (s *NetworkService) DeleteNode(id uint) error {
 	return s.nodeRepo.Delete(id)
 }
 
-// ListLinks 获取所有链路
-func (s *NetworkService) ListLinks(filters map[string]interface{}) ([]models.Link, error) {
-	return s.linkRepo.List(filters)
-}
-
-// ListLinksWithPage 分页获取链路列表
-func (s *NetworkService) ListLinksWithPage(offset, limit int, filters map[string]interface{}) ([]models.Link, int64, error) {
-	return s.linkRepo.ListWithPage(offset, limit, filters)
+// ListLinksWithPage 获取分页的链路列表
+func (s *NetworkService) ListLinks(offset, size int, filters map[string]interface{}) ([]models.Link, int64, error) {
+	return s.linkRepo.ListWithPage(offset, size, filters)
 }
 
 // GetLink 获取单个链路

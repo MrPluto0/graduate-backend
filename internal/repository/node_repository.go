@@ -29,26 +29,6 @@ func (r *NodeRepository) GetByID(id uint) (*models.Node, error) {
 	return &node, nil
 }
 
-// List 获取节点列表（不分页）
-func (r *NodeRepository) List(filters map[string]interface{}) ([]models.Node, error) {
-	var nodes []models.Node
-	query := r.db.Model(&models.Node{}).Preload("Device")
-
-	// 应用过滤条件
-	for key, value := range filters {
-		if value != nil && value != "" {
-			query = query.Where(key+" = ?", value)
-		}
-	}
-
-	err := query.Find(&nodes).Error
-	if err != nil {
-		return nil, err
-	}
-
-	return nodes, nil
-}
-
 // ListWithPage 获取分页的节点列表
 func (r *NodeRepository) ListWithPage(offset, limit int, filters map[string]interface{}) ([]models.Node, int64, error) {
 	var nodes []models.Node
@@ -58,6 +38,10 @@ func (r *NodeRepository) ListWithPage(offset, limit int, filters map[string]inte
 
 	// 应用过滤条件
 	for key, value := range filters {
+		if key == "name" {
+			query = query.Where("name LIKE ?", "%"+value.(string)+"%")
+			continue
+		}
 		if value != nil && value != "" {
 			query = query.Where(key+" = ?", value)
 		}

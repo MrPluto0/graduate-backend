@@ -31,9 +31,8 @@ func (s *DeviceService) GetDevice(id uint) (*models.Device, error) {
 }
 
 // ListDevices 获取设备列表
-func (s *DeviceService) ListDevices(page, pageSize int, filters map[string]interface{}) ([]models.Device, int64, error) {
-	offset := (page - 1) * pageSize
-	return s.repo.List(offset, pageSize, filters)
+func (s *DeviceService) ListDevices(current, size int, filters map[string]interface{}) ([]models.Device, int64, error) {
+	return s.repo.List(current, size, filters)
 }
 
 // UpdateDevice 更新设备信息
