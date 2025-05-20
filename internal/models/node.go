@@ -1,6 +1,9 @@
 package models
 
 import (
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
 	"time"
 )
 
@@ -14,21 +17,45 @@ const (
 	NodeTypeHost   NodeType = "host"   // 主机节点
 )
 
+// Properties 节点属性
+type Properties map[string]interface{}
+
+// Value 实现 driver.Valuer 接口
+func (p Properties) Value() (driver.Value, error) {
+	if p == nil {
+		return nil, nil
+	}
+	return json.Marshal(p)
+}
+
+// Scan 实现 sql.Scanner 接口
+func (p *Properties) Scan(value interface{}) error {
+	if value == nil {
+		*p = nil
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("Invalid scan source")
+	}
+	return json.Unmarshal(bytes, p)
+}
+
 // Node 表示网络拓扑中的节点
 // swagger:model
 type Node struct {
-	ID          uint       `json:"id" gorm:"primarykey,autoIncrement"`    // 节点ID
-	CreatedAt   time.Time  `json:"created_at"`                            // 创建时间
-	UpdatedAt   time.Time  `json:"updated_at"`                            // 更新时间
-	DeletedAt   *time.Time `json:"deleted_at,omitempty" gorm:"index"`     // 删除时间
-	Name        string     `json:"name" gorm:"size:100;not null;index"`   // 节点名称
-	NodeType    NodeType   `json:"node_type" gorm:"size:50;index"`        // 节点类型
-	X           int        `json:"x"`                                     // X坐标
-	Y           int        `json:"y"`                                     // Y坐标
-	Properties  string     `json:"properties,omitempty" gorm:"type:text"` // 节点属性(JSON格式)
-	DeviceID    *uint      `json:"device_id,omitempty" gorm:"index"`      // 关联的设备ID
-	Device      *Device    `json:"device,omitempty"`                      // 关联的设备
-	Description string     `json:"description" gorm:"size:500"`           // 节点描述
+	ID          uint       `json:"id" gorm:"primarykey,autoIncrement"`        // 节点ID
+	CreatedAt   time.Time  `json:"created_at"`                                // 创建时间
+	UpdatedAt   time.Time  `json:"updated_at"`                                // 更新时间
+	DeletedAt   *time.Time `json:"deleted_at,omitempty" gorm:"index"`         // 删除时间
+	Name        string     `json:"name" gorm:"size:100;not null;uniqueIndex"` // 节点名称
+	NodeType    NodeType   `json:"node_type" gorm:"size:50;index"`            // 节点类型
+	X           int        `json:"x"`                                         // X坐标
+	Y           int        `json:"y"`                                         // Y坐标
+	Properties  Properties `json:"properties,omitempty" gorm:"type:json"`     // 节点属性(JSON格式)
+	DeviceID    *uint      `json:"device_id,omitempty" gorm:"index"`          // 关联的设备ID
+	Device      *Device    `json:"device,omitempty"`                          // 关联的设备
+	Description string     `json:"description" gorm:"size:500"`               // 节点描述
 }
 
 // NodeStats 表示网络拓扑中的节点的性能指标

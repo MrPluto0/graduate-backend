@@ -37,7 +37,7 @@ func (s *UserService) CreateUser(user *models.User) error {
 func (s *UserService) ValidateUser(username, password string) (*models.User, error) {
 	user, err := s.userRepo.FindByUsername(username)
 	if err != nil {
-		return nil, errors.New("用户名或密码错误")
+		return nil, errors.New("用户名不存在")
 	}
 
 	// 验证密码

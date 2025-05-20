@@ -82,3 +82,19 @@ func (r *DeviceRepository) GetByMAC(mac string) (*models.Device, error) {
 	}
 	return &device, nil
 }
+
+// Count 统计设备数量
+func (r *DeviceRepository) Count(filters map[string]interface{}) (int64, error) {
+	var count int64
+	query := r.db.Model(&models.Device{})
+
+	// 应用过滤条件
+	for key, value := range filters {
+		if value != nil && value != "" {
+			query = query.Where(key+" = ?", value)
+		}
+	}
+
+	err := query.Count(&count).Error
+	return count, err
+}

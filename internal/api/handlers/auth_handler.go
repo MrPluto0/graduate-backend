@@ -41,7 +41,7 @@ func NewAuthHandler(userService *service.UserService) *AuthHandler {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Error(c, utils.VALIDATION_ERROR, "无效的请求参数")
+		utils.Error(c, utils.VALIDATION_ERROR, err.Error())
 		return
 	}
 

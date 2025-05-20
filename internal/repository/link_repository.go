@@ -96,11 +96,27 @@ func (r *LinkRepository) Delete(id uint) error {
 func (r *LinkRepository) GetByNodes(sourceID, targetID uint) (*models.Link, error) {
 	var link models.Link
 	err := r.db.Where("source_id = ? AND target_id = ?", sourceID, targetID).
-		Or("source_id = ? AND target_id = ?", targetID, sourceID). // 考虑双向链路
+		// Or("source_id = ? AND target_id = ?", targetID, sourceID). 不考虑双向链路
 		Preload("Source").Preload("Target").
 		First(&link).Error
 	if err != nil {
 		return nil, err
 	}
 	return &link, nil
+}
+
+// Count 统计链路数量
+func (r *LinkRepository) Count(filters map[string]interface{}) (int64, error) {
+	var count int64
+	query := r.db.Model(&models.Link{})
+
+	// 应用过滤条件
+	for key, value := range filters {
+		if value != nil && value != "" {
+			query = query.Where(key+" = ?", value)
+		}
+	}
+
+	err := query.Count(&count).Error
+	return count, err
 }

@@ -38,6 +38,7 @@ func (h *DeviceHandler) ListDevices(c *gin.Context) {
 	// 获取分页参数
 	current, _ := strconv.Atoi(c.DefaultQuery("current", "1"))
 	size, _ := strconv.Atoi(c.DefaultQuery("size", "10"))
+	offset := (current - 1) * size
 
 	// 构建过滤条件
 	filters := make(map[string]interface{})
@@ -52,7 +53,7 @@ func (h *DeviceHandler) ListDevices(c *gin.Context) {
 	}
 
 	// 获取设备列表
-	devices, total, err := h.deviceService.ListDevices(current, size, filters)
+	devices, total, err := h.deviceService.ListDevices(offset, size, filters)
 	if err != nil {
 		utils.Error(c, utils.ERROR, "获取设备列表失败")
 		return
@@ -102,7 +103,7 @@ func (h *DeviceHandler) GetDevice(c *gin.Context) {
 func (h *DeviceHandler) CreateDevice(c *gin.Context) {
 	var device models.Device
 	if err := c.ShouldBindJSON(&device); err != nil {
-		utils.Error(c, utils.VALIDATION_ERROR, "无效的设备数据")
+		utils.Error(c, utils.VALIDATION_ERROR, err.Error())
 		return
 	}
 
@@ -135,7 +136,7 @@ func (h *DeviceHandler) UpdateDevice(c *gin.Context) {
 
 	var device models.Device
 	if err := c.ShouldBindJSON(&device); err != nil {
-		utils.Error(c, utils.VALIDATION_ERROR, "无效的设备数据")
+		utils.Error(c, utils.VALIDATION_ERROR, err.Error())
 		return
 	}
 	device.ID = uint(id)

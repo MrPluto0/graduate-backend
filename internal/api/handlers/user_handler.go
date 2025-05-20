@@ -33,7 +33,7 @@ func NewUserHandler(userService *service.UserService) *UserHandler {
 func (h *UserHandler) CreateUser(c *gin.Context) {
 	var user models.User
 	if err := c.ShouldBindJSON(&user); err != nil {
-		utils.Error(c, utils.VALIDATION_ERROR, "无效的用户数据")
+		utils.Error(c, utils.VALIDATION_ERROR, err.Error())
 		return
 	}
 

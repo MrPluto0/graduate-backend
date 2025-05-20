@@ -30,16 +30,32 @@ func (s *NetworkService) GetNode(id uint) (*models.Node, error) {
 
 // CreateNode 创建节点
 func (s *NetworkService) CreateNode(node *models.Node) error {
+	// 如果设置了设备ID，检查是否重复
+	if node.DeviceID != nil {
+		existingNode, err := s.nodeRepo.GetByDeviceID(*node.DeviceID)
+		if err == nil && existingNode != nil {
+			return errors.New("该设备已经被其他节点关联")
+		}
+	}
 	return s.nodeRepo.Create(node)
 }
 
 // UpdateNode 更新节点
 func (s *NetworkService) UpdateNode(node *models.Node) error {
 	// 检查节点是否存在
-	_, err := s.nodeRepo.GetByID(node.ID)
+	existingNode, err := s.nodeRepo.GetByID(node.ID)
 	if err != nil {
 		return errors.New("节点不存在")
 	}
+
+	// 如果设备ID发生变化且不为空，检查新设备ID是否已被其他节点使用
+	if node.DeviceID != nil && (existingNode.DeviceID == nil || *existingNode.DeviceID != *node.DeviceID) {
+		nodeWithDevice, err := s.nodeRepo.GetByDeviceID(*node.DeviceID)
+		if err == nil && nodeWithDevice != nil && nodeWithDevice.ID != node.ID {
+			return errors.New("该设备已经被其他节点关联")
+		}
+	}
+
 	return s.nodeRepo.Update(node)
 }
 
@@ -71,6 +87,11 @@ func (s *NetworkService) GetLink(id uint) (*models.Link, error) {
 
 // CreateLink 创建链路
 func (s *NetworkService) CreateLink(link *models.Link) error {
+	// 检查链路名称是否已存在
+	if link.SourceID == link.TargetID {
+		return errors.New("源节点和目标节点不能相同")
+	}
+
 	// 检查源节点和目标节点是否存在
 	_, err := s.nodeRepo.GetByID(link.SourceID)
 	if err != nil {
@@ -121,4 +142,30 @@ func (s *NetworkService) DeleteLink(id uint) error {
 		return errors.New("链路不存在")
 	}
 	return s.linkRepo.Delete(id)
+}
+
+// TopologyData 网络拓扑数据结构
+type TopologyData struct {
+	Nodes []models.Node `json:"nodes"`
+	Links []models.Link `json:"links"`
+}
+
+// GetTopology 获取完整的网络拓扑数据
+func (s *NetworkService) GetTopology() (*TopologyData, error) {
+	// 获取所有节点（不分页）
+	nodes, err := s.nodeRepo.List(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// 获取所有链路（不分页）
+	links, err := s.linkRepo.List(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &TopologyData{
+		Nodes: nodes,
+		Links: links,
+	}, nil
 }

@@ -23,7 +23,7 @@ func SetupRoutes(router *gin.Engine) {
 
 	// 初始化服务层
 	userService := service.NewUserService(userRepo)
-	deviceService := service.NewDeviceService(deviceRepo)
+	deviceService := service.NewDeviceService(deviceRepo, nodeRepo, linkRepo)
 	networkService := service.NewNetworkService(nodeRepo, linkRepo)
 
 	// 初始化处理器
@@ -31,6 +31,7 @@ func SetupRoutes(router *gin.Engine) {
 	userHandler := handlers.NewUserHandler(userService)
 	deviceHandler := handlers.NewDeviceHandler(deviceService)
 	networkHandler := handlers.NewNetworkHandler(networkService)
+	overviewHandler := handlers.NewOverviewHandler(deviceService, networkService, userService)
 	healthHandler := handlers.NewHealthHandler()
 
 	// 公开路由组
@@ -51,6 +52,9 @@ func SetupRoutes(router *gin.Engine) {
 	protected := router.Group("/api/v1")
 	protected.Use(middleware.AuthMiddleware())
 	{
+		// 系统概览
+		protected.GET("/overview", overviewHandler.GetOverview)
+
 		// 认证相关路由
 		auth := protected.Group("/auth")
 		{
@@ -96,6 +100,9 @@ func SetupRoutes(router *gin.Engine) {
 				links.PUT("/:id", networkHandler.UpdateLink)
 				links.DELETE("/:id", networkHandler.DeleteLink)
 			}
+
+			// 获取完整网络拓扑
+			network.GET("/topology", networkHandler.GetTopology)
 		}
 	}
 }

@@ -23,7 +23,7 @@ type User struct {
 	DeletedAt *time.Time `json:"deleted_at,omitempty" gorm:"index"`             // 删除时间
 	Username  string     `json:"username" gorm:"size:100;not null;uniqueIndex"` // 用户名
 	Email     string     `json:"email" gorm:"size:100;not null;uniqueIndex"`    // 电子邮件
-	Password  string     `json:"-" gorm:"size:100;not null"`                    // 密码（JSON序列化时不返回）
+	Password  string     `json:"password" gorm:"size:100;not null"`             // 密码（JSON序列化时不返回）
 	Role      UserRole   `json:"role" gorm:"size:20;default:user"`              // 用户角色
 }
 

@@ -201,6 +201,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "description": "设备名称搜索关键词",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
                         "description": "设备类型筛选",
                         "name": "device_type",
                         "in": "query"
@@ -527,6 +533,12 @@ const docTemplate = `{
                         "description": "每页数量(默认10)",
                         "name": "size",
                         "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "链路名称搜索关键词",
+                        "name": "search",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -824,6 +836,12 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
+                        "description": "节点名称搜索关键词",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
                         "description": "节点类型筛选",
                         "name": "node_type",
                         "in": "query"
@@ -1091,6 +1109,86 @@ const docTemplate = `{
                 }
             }
         },
+        "/network/topology": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "获取完整的网络拓扑数据，包括所有节点和链路",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "网络管理"
+                ],
+                "summary": "获取网络拓扑",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.TopologyData"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/overview": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "获取系统中的设备数量、节点数量等静态指标信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "系统概览"
+                ],
+                "summary": "获取系统概览信息",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/service.OverviewStats"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/users": {
             "post": {
                 "security": [
@@ -1351,17 +1449,9 @@ const docTemplate = `{
         "models.Link": {
             "type": "object",
             "properties": {
-                "bandwidth": {
-                    "description": "带宽(bps)",
-                    "type": "integer"
-                },
                 "created_at": {
                     "description": "创建时间",
                     "type": "string"
-                },
-                "delay": {
-                    "description": "延迟(ms)",
-                    "type": "integer"
                 },
                 "deleted_at": {
                     "description": "删除时间",
@@ -1381,7 +1471,11 @@ const docTemplate = `{
                 },
                 "properties": {
                     "description": "链路属性(JSON格式)",
-                    "type": "string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Properties"
+                        }
+                    ]
                 },
                 "source": {
                     "description": "源节点",
@@ -1482,20 +1576,25 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "position": {
-                    "description": "节点位置坐标 [x, y]",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
                 "properties": {
                     "description": "节点属性(JSON格式)",
-                    "type": "string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/models.Properties"
+                        }
+                    ]
                 },
                 "updated_at": {
                     "description": "更新时间",
                     "type": "string"
+                },
+                "x": {
+                    "description": "X坐标",
+                    "type": "integer"
+                },
+                "y": {
+                    "description": "Y坐标",
+                    "type": "integer"
                 }
             }
         },
@@ -1520,6 +1619,10 @@ const docTemplate = `{
                 "NodeTypeHost"
             ]
         },
+        "models.Properties": {
+            "type": "object",
+            "additionalProperties": true
+        },
         "models.User": {
             "type": "object",
             "properties": {
@@ -1538,6 +1641,10 @@ const docTemplate = `{
                 "id": {
                     "description": "用户ID",
                     "type": "integer"
+                },
+                "password": {
+                    "description": "密码（JSON序列化时不返回）",
+                    "type": "string"
                 },
                 "role": {
                     "description": "用户角色",
@@ -1571,6 +1678,44 @@ const docTemplate = `{
                 "RoleAdmin",
                 "RoleUser"
             ]
+        },
+        "service.OverviewStats": {
+            "type": "object",
+            "properties": {
+                "active_count": {
+                    "description": "活跃设备数",
+                    "type": "integer"
+                },
+                "device_count": {
+                    "description": "设备总数",
+                    "type": "integer"
+                },
+                "link_count": {
+                    "description": "链路总数",
+                    "type": "integer"
+                },
+                "node_count": {
+                    "description": "节点总数",
+                    "type": "integer"
+                }
+            }
+        },
+        "service.TopologyData": {
+            "type": "object",
+            "properties": {
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Link"
+                    }
+                },
+                "nodes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Node"
+                    }
+                }
+            }
         },
         "utils.PageResult": {
             "type": "object",

@@ -1,0 +1,89 @@
+{
+    "devices": [
+        {
+            "name": "Core Router 1",
+            "device_type": "network_device",
+            "mac": "00:1A:2B:3C:4D:5E",
+            "ip": "192.168.1.1",
+            "status": "online",
+            "properties": {
+                "model": "Cisco ASR 9000",
+                "os": "IOS-XR",
+                "version": "7.5.1",
+                "memory": "32GB",
+                "cpu": "Intel Xeon"
+            },
+            "location": "核心机房A区",
+            "vendor": "Cisco",
+            "description": "核心路由器1号"
+        },
+        {
+            "name": "Edge Router 1",
+            "device_type": "compute_device",
+            "mac": "00:2C:3D:4E:5F:6G",
+            "ip": "192.168.1.2",
+            "status": "online",
+            "properties": {
+                "model": "Cisco ASR 1000",
+                "os": "IOS-XE",
+                "version": "17.3.3",
+                "memory": "16GB",
+                "cpu": "Intel Xeon"
+            },
+            "location": "边缘机房B区",
+            "vendor": "Cisco",
+            "description": "边缘路由器1号"
+        },
+        {
+            "name": "Edge Router 2",
+            "device_type": "compute_device",
+            "mac": "00:3D:4E:5F:6G:7H",
+            "ip": "192.168.1.3",
+            "status": "online",
+            "properties": {
+                "model": "Cisco ASR 1000",
+                "os": "IOS-XE",
+                "version": "17.3.3",
+                "memory": "16GB",
+                "cpu": "Intel Xeon"
+            },
+            "location": "边缘机房C区",
+            "vendor": "Cisco",
+            "description": "边缘路由器2号"
+        },
+        {
+            "name": "Access Router 1",
+            "device_type": "compute_device",
+            "mac": "00:4E:5F:6G:7H:8I",
+            "ip": "192.168.1.4",
+            "status": "online",
+            "properties": {
+                "model": "Cisco ISR 4000",
+                "os": "IOS-XE",
+                "version": "17.3.3",
+                "memory": "8GB",
+                "cpu": "Intel X86"
+            },
+            "location": "接入机房D区",
+            "vendor": "Cisco",
+            "description": "接入路由器1号"
+        },
+        {
+            "name": "Access Router 2",
+            "device_type": "compute_device",
+            "mac": "00:5F:6G:7H:8I:9J",
+            "ip": "192.168.1.5",
+            "status": "online",
+            "properties": {
+                "model": "Cisco ISR 4000",
+                "os": "IOS-XE",
+                "version": "17.3.3",
+                "memory": "8GB",
+                "cpu": "Intel X86"
+            },
+            "location": "接入机房E区",
+            "vendor": "Cisco",
+            "description": "接入路由器2号"
+        }
+    ]
+}

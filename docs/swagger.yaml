@@ -103,15 +103,9 @@ definitions:
     - NetworkDevice
   models.Link:
     properties:
-      bandwidth:
-        description: 带宽(bps)
-        type: integer
       created_at:
         description: 创建时间
         type: string
-      delay:
-        description: 延迟(ms)
-        type: integer
       deleted_at:
         description: 删除时间
         type: string
@@ -125,8 +119,9 @@ definitions:
         description: 链路名称
         type: string
       properties:
+        allOf:
+        - $ref: '#/definitions/models.Properties'
         description: 链路属性(JSON格式)
-        type: string
       source:
         allOf:
         - $ref: '#/definitions/models.Node'
@@ -191,17 +186,19 @@ definitions:
         allOf:
         - $ref: '#/definitions/models.NodeType'
         description: 节点类型
-      position:
-        description: 节点位置坐标 [x, y]
-        items:
-          type: integer
-        type: array
       properties:
+        allOf:
+        - $ref: '#/definitions/models.Properties'
         description: 节点属性(JSON格式)
-        type: string
       updated_at:
         description: 更新时间
         type: string
+      x:
+        description: X坐标
+        type: integer
+      "y":
+        description: Y坐标
+        type: integer
     type: object
   models.NodeType:
     enum:
@@ -220,6 +217,9 @@ definitions:
     - NodeTypeRouter
     - NodeTypeSwitch
     - NodeTypeHost
+  models.Properties:
+    additionalProperties: true
+    type: object
   models.User:
     properties:
       created_at:
@@ -234,6 +234,9 @@ definitions:
       id:
         description: 用户ID
         type: integer
+      password:
+        description: 密码（JSON序列化时不返回）
+        type: string
       role:
         allOf:
         - $ref: '#/definitions/models.UserRole'
@@ -256,6 +259,32 @@ definitions:
     x-enum-varnames:
     - RoleAdmin
     - RoleUser
+  service.OverviewStats:
+    properties:
+      active_count:
+        description: 活跃设备数
+        type: integer
+      device_count:
+        description: 设备总数
+        type: integer
+      link_count:
+        description: 链路总数
+        type: integer
+      node_count:
+        description: 节点总数
+        type: integer
+    type: object
+  service.TopologyData:
+    properties:
+      links:
+        items:
+          $ref: '#/definitions/models.Link'
+        type: array
+      nodes:
+        items:
+          $ref: '#/definitions/models.Node'
+        type: array
+    type: object
   utils.PageResult:
     properties:
       current:
@@ -392,6 +421,10 @@ paths:
         in: query
         name: size
         type: integer
+      - description: 设备名称搜索关键词
+        in: query
+        name: search
+        type: string
       - description: 设备类型筛选
         in: query
         name: device_type
@@ -588,6 +621,10 @@ paths:
         in: query
         name: size
         type: integer
+      - description: 链路名称搜索关键词
+        in: query
+        name: search
+        type: string
       produces:
       - application/json
       responses:
@@ -761,6 +798,10 @@ paths:
         in: query
         name: size
         type: integer
+      - description: 节点名称搜索关键词
+        in: query
+        name: search
+        type: string
       - description: 节点类型筛选
         in: query
         name: node_type
@@ -924,6 +965,50 @@ paths:
       summary: 更新节点
       tags:
       - 网络管理
+  /network/topology:
+    get:
+      consumes:
+      - application/json
+      description: 获取完整的网络拓扑数据，包括所有节点和链路
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.TopologyData'
+              type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 获取网络拓扑
+      tags:
+      - 网络管理
+  /overview:
+    get:
+      consumes:
+      - application/json
+      description: 获取系统中的设备数量、节点数量等静态指标信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/service.OverviewStats'
+              type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 获取系统概览信息
+      tags:
+      - 系统概览
   /users:
     post:
       consumes:

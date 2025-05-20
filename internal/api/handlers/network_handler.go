@@ -97,7 +97,7 @@ func (h *NetworkHandler) GetNode(c *gin.Context) {
 func (h *NetworkHandler) CreateNode(c *gin.Context) {
 	var node models.Node
 	if err := c.ShouldBindJSON(&node); err != nil {
-		utils.Error(c, utils.VALIDATION_ERROR, "无效的节点数据")
+		utils.Error(c, utils.VALIDATION_ERROR, err.Error())
 		return
 	}
 
@@ -130,7 +130,7 @@ func (h *NetworkHandler) UpdateNode(c *gin.Context) {
 
 	var node models.Node
 	if err := c.ShouldBindJSON(&node); err != nil {
-		utils.Error(c, utils.VALIDATION_ERROR, "无效的节点数据")
+		utils.Error(c, utils.VALIDATION_ERROR, err.Error())
 		return
 	}
 	node.ID = uint(id)
@@ -243,7 +243,7 @@ func (h *NetworkHandler) GetLink(c *gin.Context) {
 func (h *NetworkHandler) CreateLink(c *gin.Context) {
 	var link models.Link
 	if err := c.ShouldBindJSON(&link); err != nil {
-		utils.Error(c, utils.VALIDATION_ERROR, "无效的链路数据")
+		utils.Error(c, utils.VALIDATION_ERROR, err.Error())
 		return
 	}
 
@@ -276,7 +276,7 @@ func (h *NetworkHandler) UpdateLink(c *gin.Context) {
 
 	var link models.Link
 	if err := c.ShouldBindJSON(&link); err != nil {
-		utils.Error(c, utils.VALIDATION_ERROR, "无效的链路数据")
+		utils.Error(c, utils.VALIDATION_ERROR, err.Error())
 		return
 	}
 	link.ID = uint(id)
@@ -313,4 +313,23 @@ func (h *NetworkHandler) DeleteLink(c *gin.Context) {
 	}
 
 	utils.SuccessWithMessage(c, nil, "链路删除成功")
+}
+
+// GetTopology godoc
+// @Summary 获取网络拓扑
+// @Description 获取完整的网络拓扑数据，包括所有节点和链路
+// @Tags 网络管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Success 200 {object} utils.Response{data=service.TopologyData}
+// @Router /network/topology [get]
+func (h *NetworkHandler) GetTopology(c *gin.Context) {
+	topology, err := h.networkService.GetTopology()
+	if err != nil {
+		utils.Error(c, utils.ERROR, "获取网络拓扑失败")
+		return
+	}
+
+	utils.Success(c, topology)
 }
