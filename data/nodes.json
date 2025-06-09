@@ -1,69 +1,184 @@
 {
     "nodes": [
         {
-            "name": "Core Node 1",
-            "node_type": "router",
-            "x": 300,
-            "y": 50,
+            "name": "Base Station 1",
+            "node_type": "base_station",
+            "x": 100,
+            "y": 100,
             "properties": {
-                "interfaces": 4,
+                "interfaces": 6,
                 "throughput": "10Gbps",
-                "status": "active"
+                "status": "active",
+                "power": "1000W",
+                "coverage_radius": "5km"
             },
-            "description": "中心节点1号",
+            "description": "基站1号（左上角）",
             "device_id": 1
         },
         {
-            "name": "Edge Node 1",
-            "node_type": "router",
-            "x": 100,
-            "y": 200,
+            "name": "Base Station 2",
+            "node_type": "base_station",
+            "x": 500,
+            "y": 100,
             "properties": {
-                "interfaces": 4,
-                "throughput": "1Gbps",
-                "status": "active"
+                "interfaces": 6,
+                "throughput": "10Gbps",
+                "status": "active",
+                "power": "1000W",
+                "coverage_radius": "5km"
             },
-            "description": "边缘节点1号",
+            "description": "基站2号（右上角）",
             "device_id": 2
         },
         {
-            "name": "Edge Node 2",
-            "node_type": "router",
-            "x": 300,
-            "y": 200,
+            "name": "Base Station 3",
+            "node_type": "base_station",
+            "x": 500,
+            "y": 400,
             "properties": {
-                "interfaces": 4,
-                "throughput": "1Gbps",
-                "status": "active"
+                "interfaces": 6,
+                "throughput": "10Gbps",
+                "status": "active",
+                "power": "1000W",
+                "coverage_radius": "5km"
             },
-            "description": "边缘节点2号",
+            "description": "基站3号（右下角）",
             "device_id": 3
         },
         {
-            "name": "Access Node 1",
-            "node_type": "router",
-            "x": 200,
-            "y": 350,
+            "name": "Base Station 4",
+            "node_type": "base_station",
+            "x": 100,
+            "y": 400,
             "properties": {
-                "interfaces": 2,
-                "throughput": "1Gbps",
-                "status": "active"
+                "interfaces": 6,
+                "throughput": "10Gbps",
+                "status": "active",
+                "power": "1000W",
+                "coverage_radius": "5km"
             },
-            "description": "接入节点1号",
+            "description": "基站4号（左下角）",
             "device_id": 4
         },
         {
-            "name": "Access Node 2",
-            "node_type": "router",
-            "x": 400,
+            "name": "User Node 1",
+            "node_type": "user_equipment",
+            "x": 80,
+            "y": 150,
+            "properties": {
+                "interfaces": 1,
+                "throughput": "1Gbps",
+                "status": "active",
+                "battery_level": "85%",
+                "signal_strength": "-60dBm"
+            },
+            "description": "用户节点1号（连接基站1）",
+            "device_id": 5
+        },
+        {
+            "name": "User Node 2",
+            "node_type": "user_equipment",
+            "x": 120,
+            "y": 150,
+            "properties": {
+                "interfaces": 1,
+                "throughput": "1Gbps",
+                "status": "active",
+                "battery_level": "92%",
+                "signal_strength": "-55dBm"
+            },
+            "description": "用户节点2号（连接基站1）",
+            "device_id": 6
+        },
+        {
+            "name": "User Node 3",
+            "node_type": "user_equipment",
+            "x": 480,
+            "y": 150,
+            "properties": {
+                "interfaces": 1,
+                "throughput": "1Gbps",
+                "status": "active",
+                "battery_level": "78%",
+                "signal_strength": "-65dBm"
+            },
+            "description": "用户节点3号（连接基站2）",
+            "device_id": 7
+        },
+        {
+            "name": "User Node 4",
+            "node_type": "user_equipment",
+            "x": 520,
+            "y": 150,
+            "properties": {
+                "interfaces": 1,
+                "throughput": "1Gbps",
+                "status": "active",
+                "battery_level": "88%",
+                "signal_strength": "-58dBm"
+            },
+            "description": "用户节点4号（连接基站2）",
+            "device_id": 8
+        },
+        {
+            "name": "User Node 5",
+            "node_type": "user_equipment",
+            "x": 480,
             "y": 350,
             "properties": {
-                "interfaces": 2,
+                "interfaces": 1,
                 "throughput": "1Gbps",
-                "status": "active"
+                "status": "active",
+                "battery_level": "95%",
+                "signal_strength": "-52dBm"
             },
-            "description": "接入节点2号",
-            "device_id": 5
+            "description": "用户节点5号（连接基站3）",
+            "device_id": 9
+        },
+        {
+            "name": "User Node 6",
+            "node_type": "user_equipment",
+            "x": 520,
+            "y": 350,
+            "properties": {
+                "interfaces": 1,
+                "throughput": "1Gbps",
+                "status": "active",
+                "battery_level": "71%",
+                "signal_strength": "-68dBm"
+            },
+            "description": "用户节点6号（连接基站3）",
+            "device_id": 10
+        },
+        {
+            "name": "User Node 7",
+            "node_type": "user_equipment",
+            "x": 80,
+            "y": 350,
+            "properties": {
+                "interfaces": 1,
+                "throughput": "1Gbps",
+                "status": "active",
+                "battery_level": "82%",
+                "signal_strength": "-62dBm"
+            },
+            "description": "用户节点7号（连接基站4）",
+            "device_id": 11
+        },
+        {
+            "name": "User Node 8",
+            "node_type": "user_equipment",
+            "x": 120,
+            "y": 350,
+            "properties": {
+                "interfaces": 1,
+                "throughput": "1Gbps",
+                "status": "active",
+                "battery_level": "90%",
+                "signal_strength": "-56dBm"
+            },
+            "description": "用户节点8号（连接基站4）",
+            "device_id": 12
         }
     ]
 }

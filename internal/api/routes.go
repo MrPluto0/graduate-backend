@@ -64,8 +64,19 @@ func SetupRoutes(router *gin.Engine) {
 		// 用户管理路由
 		users := protected.Group("/users")
 		{
-			users.POST("", userHandler.CreateUser)
 			users.GET("/:id", userHandler.GetUser)
+		}
+
+		// 管理员专用路由
+		admin := protected.Group("/admin")
+		admin.Use(middleware.AdminMiddleware())
+		{
+			// 管理员用户管理
+			adminUsers := admin.Group("/users")
+			{
+				adminUsers.GET("", userHandler.ListUsers)
+				adminUsers.POST("", userHandler.CreateUser)
+			}
 		}
 
 		// 设备管理路由

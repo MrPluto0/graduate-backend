@@ -1,69 +1,180 @@
 {
     "links": [
         {
-            "name": "Core-Edge Link 1",
+            "name": "Base Station 1-2 Link",
             "link_type": "fiber",
             "properties": {
                 "bandwidth": "10Gbps",
-                "latency": "1ms",
-                "protocol": "OSPF"
+                "latency": "0.5ms",
+                "protocol": "5G-NR",
+                "frequency": "28GHz"
             },
             "status": "up",
-            "description": "核心到边缘链路1",
+            "description": "基站1到基站2的骨干链路",
             "source_id": 1,
             "target_id": 2
         },
         {
-            "name": "Core-Edge Link 2",
+            "name": "Base Station 2-3 Link",
             "link_type": "fiber",
             "properties": {
                 "bandwidth": "10Gbps",
-                "latency": "1ms",
-                "protocol": "OSPF"
+                "latency": "0.5ms",
+                "protocol": "5G-NR",
+                "frequency": "28GHz"
             },
             "status": "up",
-            "description": "核心到边缘链路2",
-            "source_id": 1,
-            "target_id": 3
-        },
-        {
-            "name": "Edge-Edge Link",
-            "link_type": "fiber",
-            "properties": {
-                "bandwidth": "10Gbps",
-                "latency": "1ms",
-                "protocol": "OSPF"
-            },
-            "status": "up",
-            "description": "边缘节点互联链路",
+            "description": "基站2到基站3的骨干链路",
             "source_id": 2,
             "target_id": 3
         },
         {
-            "name": "Edge-Access Link 1",
-            "link_type": "ethernet",
+            "name": "Base Station 3-4 Link",
+            "link_type": "fiber",
             "properties": {
-                "bandwidth": "1Gbps",
-                "latency": "2ms",
-                "protocol": "OSPF"
+                "bandwidth": "10Gbps",
+                "latency": "0.5ms",
+                "protocol": "5G-NR",
+                "frequency": "28GHz"
             },
             "status": "up",
-            "description": "边缘到接入链路1",
+            "description": "基站3到基站4的骨干链路",
             "source_id": 3,
             "target_id": 4
         },
         {
-            "name": "Edge-Access Link 2",
-            "link_type": "ethernet",
+            "name": "Base Station 4-1 Link",
+            "link_type": "fiber",
+            "properties": {
+                "bandwidth": "10Gbps",
+                "latency": "0.5ms",
+                "protocol": "5G-NR",
+                "frequency": "28GHz"
+            },
+            "status": "up",
+            "description": "基站4到基站1的骨干链路",
+            "source_id": 4,
+            "target_id": 1
+        },
+        {
+            "name": "Base Station 1 - User Node 1",
+            "link_type": "wireless",
             "properties": {
                 "bandwidth": "1Gbps",
                 "latency": "2ms",
-                "protocol": "OSPF"
+                "protocol": "5G-NR",
+                "frequency": "3.5GHz",
+                "modulation": "256QAM"
             },
             "status": "up",
-            "description": "边缘到接入链路2",
-            "source_id": 3,
+            "description": "基站1到用户节点1的无线连接",
+            "source_id": 1,
             "target_id": 5
+        },
+        {
+            "name": "Base Station 1 - User Node 2",
+            "link_type": "wireless",
+            "properties": {
+                "bandwidth": "1Gbps",
+                "latency": "2ms",
+                "protocol": "5G-NR",
+                "frequency": "3.5GHz",
+                "modulation": "256QAM"
+            },
+            "status": "up",
+            "description": "基站1到用户节点2的无线连接",
+            "source_id": 1,
+            "target_id": 6
+        },
+        {
+            "name": "Base Station 2 - User Node 3",
+            "link_type": "wireless",
+            "properties": {
+                "bandwidth": "1Gbps",
+                "latency": "2ms",
+                "protocol": "5G-NR",
+                "frequency": "3.5GHz",
+                "modulation": "256QAM"
+            },
+            "status": "up",
+            "description": "基站2到用户节点3的无线连接",
+            "source_id": 2,
+            "target_id": 7
+        },
+        {
+            "name": "Base Station 2 - User Node 4",
+            "link_type": "wireless",
+            "properties": {
+                "bandwidth": "1Gbps",
+                "latency": "2ms",
+                "protocol": "5G-NR",
+                "frequency": "3.5GHz",
+                "modulation": "256QAM"
+            },
+            "status": "up",
+            "description": "基站2到用户节点4的无线连接",
+            "source_id": 2,
+            "target_id": 8
+        },
+        {
+            "name": "Base Station 3 - User Node 5",
+            "link_type": "wireless",
+            "properties": {
+                "bandwidth": "1Gbps",
+                "latency": "2ms",
+                "protocol": "5G-NR",
+                "frequency": "3.5GHz",
+                "modulation": "256QAM"
+            },
+            "status": "up",
+            "description": "基站3到用户节点5的无线连接",
+            "source_id": 3,
+            "target_id": 9
+        },
+        {
+            "name": "Base Station 3 - User Node 6",
+            "link_type": "wireless",
+            "properties": {
+                "bandwidth": "1Gbps",
+                "latency": "2ms",
+                "protocol": "5G-NR",
+                "frequency": "3.5GHz",
+                "modulation": "256QAM"
+            },
+            "status": "up",
+            "description": "基站3到用户节点6的无线连接",
+            "source_id": 3,
+            "target_id": 10
+        },
+        {
+            "name": "Base Station 4 - User Node 7",
+            "link_type": "wireless",
+            "properties": {
+                "bandwidth": "1Gbps",
+                "latency": "2ms",
+                "protocol": "5G-NR",
+                "frequency": "3.5GHz",
+                "modulation": "256QAM"
+            },
+            "status": "up",
+            "description": "基站4到用户节点7的无线连接",
+            "source_id": 4,
+            "target_id": 11
+        },
+        {
+            "name": "Base Station 4 - User Node 8",
+            "link_type": "wireless",
+            "properties": {
+                "bandwidth": "1Gbps",
+                "latency": "2ms",
+                "protocol": "5G-NR",
+                "frequency": "3.5GHz",
+                "modulation": "256QAM"
+            },
+            "status": "up",
+            "description": "基站4到用户节点8的无线连接",
+            "source_id": 4,
+            "target_id": 12
         }
     ]
 }

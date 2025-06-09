@@ -11,10 +11,8 @@ import (
 type NodeType string
 
 const (
-	NodeTypeDevice NodeType = "device" // 设备节点
-	NodeTypeRouter NodeType = "router" // 路由器节点
-	NodeTypeSwitch NodeType = "switch" // 交换机节点
-	NodeTypeHost   NodeType = "host"   // 主机节点
+	NodeTypeDevice NodeType = "user_equipment" // 用户节点
+	NodeTypeRouter NodeType = "base_station"   // 基站节点
 )
 
 // Properties 节点属性

@@ -1,89 +1,232 @@
 {
     "devices": [
         {
-            "name": "Core Router 1",
+            "name": "Base Station 1",
             "device_type": "network_device",
             "mac": "00:1A:2B:3C:4D:5E",
             "ip": "192.168.1.1",
             "status": "online",
             "properties": {
-                "model": "Cisco ASR 9000",
-                "os": "IOS-XR",
-                "version": "7.5.1",
+                "model": "Huawei AAU5613",
+                "os": "5G-Core",
+                "version": "V200R021C00",
                 "memory": "32GB",
-                "cpu": "Intel Xeon"
+                "cpu": "ARM Cortex-A78",
+                "power_consumption": "1000W",
+                "antenna_gain": "21dBi"
             },
-            "location": "核心机房A区",
-            "vendor": "Cisco",
-            "description": "核心路由器1号"
+            "location": "基站机房A区",
+            "vendor": "Huawei",
+            "description": "5G基站设备1号"
         },
         {
-            "name": "Edge Router 1",
-            "device_type": "compute_device",
-            "mac": "00:2C:3D:4E:5F:6G",
+            "name": "Base Station 2",
+            "device_type": "network_device",
+            "mac": "00:2C:3D:4E:5F:6A",
             "ip": "192.168.1.2",
             "status": "online",
             "properties": {
-                "model": "Cisco ASR 1000",
-                "os": "IOS-XE",
-                "version": "17.3.3",
-                "memory": "16GB",
-                "cpu": "Intel Xeon"
+                "model": "Huawei AAU5613",
+                "os": "5G-Core",
+                "version": "V200R021C00",
+                "memory": "32GB",
+                "cpu": "ARM Cortex-A78",
+                "power_consumption": "1000W",
+                "antenna_gain": "21dBi"
             },
-            "location": "边缘机房B区",
-            "vendor": "Cisco",
-            "description": "边缘路由器1号"
+            "location": "基站机房B区",
+            "vendor": "Huawei",
+            "description": "5G基站设备2号"
         },
         {
-            "name": "Edge Router 2",
-            "device_type": "compute_device",
-            "mac": "00:3D:4E:5F:6G:7H",
+            "name": "Base Station 3",
+            "device_type": "network_device",
+            "mac": "00:3D:4E:5F:6A:7B",
             "ip": "192.168.1.3",
             "status": "online",
             "properties": {
-                "model": "Cisco ASR 1000",
-                "os": "IOS-XE",
-                "version": "17.3.3",
-                "memory": "16GB",
-                "cpu": "Intel Xeon"
+                "model": "Huawei AAU5613",
+                "os": "5G-Core",
+                "version": "V200R021C00",
+                "memory": "32GB",
+                "cpu": "ARM Cortex-A78",
+                "power_consumption": "1000W",
+                "antenna_gain": "21dBi"
             },
-            "location": "边缘机房C区",
-            "vendor": "Cisco",
-            "description": "边缘路由器2号"
+            "location": "基站机房C区",
+            "vendor": "Huawei",
+            "description": "5G基站设备3号"
         },
         {
-            "name": "Access Router 1",
-            "device_type": "compute_device",
-            "mac": "00:4E:5F:6G:7H:8I",
+            "name": "Base Station 4",
+            "device_type": "network_device",
+            "mac": "00:4E:5F:6A:7B:8C",
             "ip": "192.168.1.4",
             "status": "online",
             "properties": {
-                "model": "Cisco ISR 4000",
-                "os": "IOS-XE",
-                "version": "17.3.3",
-                "memory": "8GB",
-                "cpu": "Intel X86"
+                "model": "Huawei AAU5613",
+                "os": "5G-Core",
+                "version": "V200R021C00",
+                "memory": "32GB",
+                "cpu": "ARM Cortex-A78",
+                "power_consumption": "1000W",
+                "antenna_gain": "21dBi"
             },
-            "location": "接入机房D区",
-            "vendor": "Cisco",
-            "description": "接入路由器1号"
+            "location": "基站机房D区",
+            "vendor": "Huawei",
+            "description": "5G基站设备4号"
         },
         {
-            "name": "Access Router 2",
-            "device_type": "compute_device",
-            "mac": "00:5F:6G:7H:8I:9J",
-            "ip": "192.168.1.5",
+            "name": "User Terminal 1",
+            "device_type": "mobile_device",
+            "mac": "00:5F:6A:7B:8C:9D",
+            "ip": "192.168.2.1",
             "status": "online",
             "properties": {
-                "model": "Cisco ISR 4000",
-                "os": "IOS-XE",
-                "version": "17.3.3",
-                "memory": "8GB",
-                "cpu": "Intel X86"
+                "model": "iPhone 14 Pro",
+                "os": "iOS",
+                "version": "16.4.1",
+                "memory": "6GB",
+                "cpu": "Apple A16 Bionic",
+                "battery_capacity": "3200mAh",
+                "signal_strength": "-60dBm"
             },
-            "location": "接入机房E区",
-            "vendor": "Cisco",
-            "description": "接入路由器2号"
+            "location": "用户区域A",
+            "vendor": "Apple",
+            "description": "用户终端设备1号"
+        },
+        {
+            "name": "User Terminal 2",
+            "device_type": "mobile_device",
+            "mac": "00:6A:7B:8C:9D:AE",
+            "ip": "192.168.2.2",
+            "status": "online",
+            "properties": {
+                "model": "Samsung Galaxy S23",
+                "os": "Android",
+                "version": "13.0",
+                "memory": "8GB",
+                "cpu": "Snapdragon 8 Gen 2",
+                "battery_capacity": "3900mAh",
+                "signal_strength": "-55dBm"
+            },
+            "location": "用户区域A",
+            "vendor": "Samsung",
+            "description": "用户终端设备2号"
+        },
+        {
+            "name": "User Terminal 3",
+            "device_type": "mobile_device",
+            "mac": "00:7B:8C:9D:AE:BF",
+            "ip": "192.168.2.3",
+            "status": "online",
+            "properties": {
+                "model": "Xiaomi 13 Pro",
+                "os": "Android",
+                "version": "13.0",
+                "memory": "12GB",
+                "cpu": "Snapdragon 8 Gen 2",
+                "battery_capacity": "4820mAh",
+                "signal_strength": "-65dBm"
+            },
+            "location": "用户区域B",
+            "vendor": "Xiaomi",
+            "description": "用户终端设备3号"
+        },
+        {
+            "name": "User Terminal 4",
+            "device_type": "mobile_device",
+            "mac": "00:8C:9D:AE:BF:C0",
+            "ip": "192.168.2.4",
+            "status": "online",
+            "properties": {
+                "model": "OnePlus 11",
+                "os": "Android",
+                "version": "13.0",
+                "memory": "8GB",
+                "cpu": "Snapdragon 8 Gen 2",
+                "battery_capacity": "5000mAh",
+                "signal_strength": "-58dBm"
+            },
+            "location": "用户区域B",
+            "vendor": "OnePlus",
+            "description": "用户终端设备4号"
+        },
+        {
+            "name": "User Terminal 5",
+            "device_type": "mobile_device",
+            "mac": "00:9D:AE:BF:C0:D1",
+            "ip": "192.168.2.5",
+            "status": "online",
+            "properties": {
+                "model": "iPhone 14",
+                "os": "iOS",
+                "version": "16.4.1",
+                "memory": "6GB",
+                "cpu": "Apple A15 Bionic",
+                "battery_capacity": "3279mAh",
+                "signal_strength": "-52dBm"
+            },
+            "location": "用户区域C",
+            "vendor": "Apple",
+            "description": "用户终端设备5号"
+        },
+        {
+            "name": "User Terminal 6",
+            "device_type": "mobile_device",
+            "mac": "00:AE:BF:C0:D1:E2",
+            "ip": "192.168.2.6",
+            "status": "online",
+            "properties": {
+                "model": "Huawei P60 Pro",
+                "os": "HarmonyOS",
+                "version": "3.1",
+                "memory": "8GB",
+                "cpu": "Snapdragon 8+ Gen 1",
+                "battery_capacity": "4815mAh",
+                "signal_strength": "-68dBm"
+            },
+            "location": "用户区域C",
+            "vendor": "Huawei",
+            "description": "用户终端设备6号"
+        },
+        {
+            "name": "User Terminal 7",
+            "device_type": "mobile_device",
+            "mac": "00:BF:C0:D1:E2:F3",
+            "ip": "192.168.2.7",
+            "status": "online",
+            "properties": {
+                "model": "Google Pixel 7 Pro",
+                "os": "Android",
+                "version": "13.0",
+                "memory": "12GB",
+                "cpu": "Google Tensor G2",
+                "battery_capacity": "5003mAh",
+                "signal_strength": "-62dBm"
+            },
+            "location": "用户区域D",
+            "vendor": "Google",
+            "description": "用户终端设备7号"
+        },
+        {
+            "name": "User Terminal 8",
+            "device_type": "mobile_device",
+            "mac": "00:C0:D1:E2:F3:04",
+            "ip": "192.168.2.8",
+            "status": "online",
+            "properties": {
+                "model": "Oppo Find X6 Pro",
+                "os": "Android",
+                "version": "13.0",
+                "memory": "12GB",
+                "cpu": "Snapdragon 8 Gen 2",
+                "battery_capacity": "5000mAh",
+                "signal_strength": "-56dBm"
+            },
+            "location": "用户区域D",
+            "vendor": "Oppo",
+            "description": "用户终端设备8号"
         }
     ]
 }

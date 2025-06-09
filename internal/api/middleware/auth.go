@@ -49,3 +49,25 @@ func AuthMiddleware() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// AdminMiddleware 管理员权限检查中间件
+func AdminMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 先检查是否已经通过了认证
+		role, exists := c.Get("role")
+		if !exists {
+			utils.Error(c, utils.UNAUTHORIZED, "用户未登录")
+			c.Abort()
+			return
+		}
+
+		// 检查是否为管理员
+		if role.(string) != string("admin") {
+			utils.Error(c, utils.FORBIDDEN, "需要管理员权限")
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}

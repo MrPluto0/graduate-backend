@@ -53,3 +53,18 @@ func (s *UserService) ValidateUser(username, password string) (*models.User, err
 func (s *UserService) GetUserByID(id uint) (*models.User, error) {
 	return s.userRepo.FindByID(id)
 }
+
+// ListUsers 获取用户列表（仅管理员可用）
+func (s *UserService) ListUsers(current, size int, filters map[string]interface{}) ([]models.User, int64, error) {
+	offset := (current - 1) * size
+	return s.userRepo.List(offset, size, filters)
+}
+
+// IsAdmin 检查用户是否为管理员
+func (s *UserService) IsAdmin(userID uint) (bool, error) {
+	user, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return false, err
+	}
+	return user.Role == models.RoleAdmin, nil
+}
