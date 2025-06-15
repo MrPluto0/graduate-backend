@@ -33,6 +33,7 @@ func SetupRoutes(router *gin.Engine) {
 	networkHandler := handlers.NewNetworkHandler(networkService)
 	overviewHandler := handlers.NewOverviewHandler(deviceService, networkService, userService)
 	healthHandler := handlers.NewHealthHandler()
+	algorithmHandler := handlers.NewAlgorithmHandler()
 
 	// 公开路由组
 	public := router.Group("/api/v1")
@@ -45,6 +46,17 @@ func SetupRoutes(router *gin.Engine) {
 		{
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/refresh", authHandler.RefreshToken)
+		}
+
+		// 算法管理路由
+		algorithm := public.Group("/algorithm")
+		{
+			algorithm.POST("/start", algorithmHandler.StartAlgorithm)
+			algorithm.POST("/stop", algorithmHandler.StopAlgorithm)
+			algorithm.GET("/info", algorithmHandler.GetSystemInfo)
+			algorithm.GET("/state", algorithmHandler.GetCurrentState)
+			algorithm.GET("/history", algorithmHandler.GetStateHistory)
+			algorithm.POST("/clear", algorithmHandler.ClearHistory)
 		}
 	}
 

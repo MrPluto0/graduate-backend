@@ -24,6 +24,237 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/algorithm/clear": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "清除算法执行的历史状态记录",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "算法管理"
+                ],
+                "summary": "清除历史记录",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/algorithm/history": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "获取算法执行的状态历史记录",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "算法管理"
+                ],
+                "summary": "获取状态历史",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/algorithm.State"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/algorithm/info": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "获取当前系统状态信息",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "算法管理"
+                ],
+                "summary": "获取系统信息",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "additionalProperties": true
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/algorithm/start": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "接收用户新产生的数据，启动算法计算",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "算法管理"
+                ],
+                "summary": "启动算法",
+                "parameters": [
+                    {
+                        "description": "算法请求参数",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.AlgorithmRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/algorithm/state": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "获取算法当前执行状态",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "算法管理"
+                ],
+                "summary": "获取当前状态",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/algorithm.State"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/algorithm/stop": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "停止当前运行的算法",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "算法管理"
+                ],
+                "summary": "停止算法",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/login": {
             "post": {
                 "description": "用户登录并返回访问令牌和刷新令牌",
@@ -1190,6 +1421,85 @@ const docTemplate = `{
             }
         },
         "/users": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "获取用户列表，仅管理员可访问",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "用户管理"
+                ],
+                "summary": "获取用户列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "当前页码",
+                        "name": "current",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 10,
+                        "description": "每页数量",
+                        "name": "size",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "admin",
+                            "user"
+                        ],
+                        "type": "string",
+                        "description": "用户角色筛选",
+                        "name": "role",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "搜索关键字（用户名或邮箱）",
+                        "name": "search",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/utils.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/models.User"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            },
             "post": {
                 "security": [
                     {
@@ -1303,6 +1613,107 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "algorithm.State": {
+            "type": "object",
+            "properties": {
+                "Q": {
+                    "description": "队列状态",
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "Q_next": {
+                    "description": "下一时刻队列长度",
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "compute_delay": {
+                    "description": "计算延迟",
+                    "type": "number"
+                },
+                "compute_energy": {
+                    "description": "惩罚项指标",
+                    "type": "number"
+                },
+                "cost": {
+                    "description": "性能指标",
+                    "type": "number"
+                },
+                "delta": {
+                    "description": "通信资源分配",
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "drift": {
+                    "description": "漂移值",
+                    "type": "number"
+                },
+                "epsilon": {
+                    "description": "卸载决策",
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "f": {
+                    "description": "决策变量",
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
+                },
+                "load": {
+                    "description": "系统负载",
+                    "type": "number"
+                },
+                "penalty": {
+                    "description": "惩罚项",
+                    "type": "number"
+                },
+                "t": {
+                    "description": "基本状态信息",
+                    "type": "integer"
+                },
+                "transfer_delay": {
+                    "description": "传输延迟",
+                    "type": "number"
+                },
+                "transfer_energy": {
+                    "description": "传输能耗",
+                    "type": "number"
+                }
+            }
+        },
+        "algorithm.UserData": {
+            "type": "object",
+            "properties": {
+                "data_size": {
+                    "description": "数据大小（比特）",
+                    "type": "number"
+                },
+                "user_id": {
+                    "description": "用户ID",
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.AlgorithmRequest": {
+            "type": "object",
+            "properties": {
+                "user_data_list": {
+                    "description": "各用户新产生的数据",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/algorithm.UserData"
+                    }
+                }
+            }
+        },
         "handlers.LoginRequest": {
             "type": "object",
             "required": [
@@ -1601,22 +2012,16 @@ const docTemplate = `{
         "models.NodeType": {
             "type": "string",
             "enum": [
-                "device",
-                "router",
-                "switch",
-                "host"
+                "user_equipment",
+                "base_station"
             ],
             "x-enum-comments": {
-                "NodeTypeDevice": "设备节点",
-                "NodeTypeHost": "主机节点",
-                "NodeTypeRouter": "路由器节点",
-                "NodeTypeSwitch": "交换机节点"
+                "NodeTypeComm": "基站节点",
+                "NodeTypeUser": "用户节点"
             },
             "x-enum-varnames": [
-                "NodeTypeDevice",
-                "NodeTypeRouter",
-                "NodeTypeSwitch",
-                "NodeTypeHost"
+                "NodeTypeUser",
+                "NodeTypeComm"
             ]
         },
         "models.Properties": {

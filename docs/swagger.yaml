@@ -1,5 +1,77 @@
 basePath: /api/v1
 definitions:
+  algorithm.State:
+    properties:
+      Q:
+        description: 队列状态
+        items:
+          type: number
+        type: array
+      Q_next:
+        description: 下一时刻队列长度
+        items:
+          type: number
+        type: array
+      compute_delay:
+        description: 计算延迟
+        type: number
+      compute_energy:
+        description: 惩罚项指标
+        type: number
+      cost:
+        description: 性能指标
+        type: number
+      delta:
+        description: 通信资源分配
+        items:
+          type: number
+        type: array
+      drift:
+        description: 漂移值
+        type: number
+      epsilon:
+        description: 卸载决策
+        items:
+          type: number
+        type: array
+      f:
+        description: 决策变量
+        items:
+          type: number
+        type: array
+      load:
+        description: 系统负载
+        type: number
+      penalty:
+        description: 惩罚项
+        type: number
+      t:
+        description: 基本状态信息
+        type: integer
+      transfer_delay:
+        description: 传输延迟
+        type: number
+      transfer_energy:
+        description: 传输能耗
+        type: number
+    type: object
+  algorithm.UserData:
+    properties:
+      data_size:
+        description: 数据大小（比特）
+        type: number
+      user_id:
+        description: 用户ID
+        type: integer
+    type: object
+  handlers.AlgorithmRequest:
+    properties:
+      user_data_list:
+        description: 各用户新产生的数据
+        items:
+          $ref: '#/definitions/algorithm.UserData'
+        type: array
+    type: object
   handlers.LoginRequest:
     properties:
       password:
@@ -202,21 +274,15 @@ definitions:
     type: object
   models.NodeType:
     enum:
-    - device
-    - router
-    - switch
-    - host
+    - user_equipment
+    - base_station
     type: string
     x-enum-comments:
-      NodeTypeDevice: 设备节点
-      NodeTypeHost: 主机节点
-      NodeTypeRouter: 路由器节点
-      NodeTypeSwitch: 交换机节点
+      NodeTypeComm: 基站节点
+      NodeTypeUser: 用户节点
     x-enum-varnames:
-    - NodeTypeDevice
-    - NodeTypeRouter
-    - NodeTypeSwitch
-    - NodeTypeHost
+    - NodeTypeUser
+    - NodeTypeComm
   models.Properties:
     additionalProperties: true
     type: object
@@ -324,6 +390,141 @@ info:
   title: 网络设备管理系统 API
   version: "1.0"
 paths:
+  /algorithm/clear:
+    post:
+      consumes:
+      - application/json
+      description: 清除算法执行的历史状态记录
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 清除历史记录
+      tags:
+      - 算法管理
+  /algorithm/history:
+    get:
+      consumes:
+      - application/json
+      description: 获取算法执行的状态历史记录
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/algorithm.State'
+                  type: array
+              type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 获取状态历史
+      tags:
+      - 算法管理
+  /algorithm/info:
+    get:
+      consumes:
+      - application/json
+      description: 获取当前系统状态信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+      security:
+      - ApiKeyAuth: []
+      summary: 获取系统信息
+      tags:
+      - 算法管理
+  /algorithm/start:
+    post:
+      consumes:
+      - application/json
+      description: 接收用户新产生的数据，启动算法计算
+      parameters:
+      - description: 算法请求参数
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.AlgorithmRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 启动算法
+      tags:
+      - 算法管理
+  /algorithm/state:
+    get:
+      consumes:
+      - application/json
+      description: 获取算法当前执行状态
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/algorithm.State'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取当前状态
+      tags:
+      - 算法管理
+  /algorithm/stop:
+    post:
+      consumes:
+      - application/json
+      description: 停止当前运行的算法
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 停止算法
+      tags:
+      - 算法管理
   /auth/login:
     post:
       consumes:
@@ -1010,6 +1211,55 @@ paths:
       tags:
       - 系统概览
   /users:
+    get:
+      consumes:
+      - application/json
+      description: 获取用户列表，仅管理员可访问
+      parameters:
+      - default: 1
+        description: 当前页码
+        in: query
+        name: current
+        type: integer
+      - default: 10
+        description: 每页数量
+        in: query
+        name: size
+        type: integer
+      - description: 用户角色筛选
+        enum:
+        - admin
+        - user
+        in: query
+        name: role
+        type: string
+      - description: 搜索关键字（用户名或邮箱）
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/utils.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.User'
+                  type: array
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 获取用户列表
+      tags:
+      - 用户管理
     post:
       consumes:
       - application/json

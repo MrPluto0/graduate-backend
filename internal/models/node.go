@@ -11,8 +11,8 @@ import (
 type NodeType string
 
 const (
-	NodeTypeDevice NodeType = "user_equipment" // 用户节点
-	NodeTypeRouter NodeType = "base_station"   // 基站节点
+	NodeTypeUser NodeType = "user_equipment" // 用户节点
+	NodeTypeComm NodeType = "base_station"   // 基站节点
 )
 
 // Properties 节点属性
