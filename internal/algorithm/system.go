@@ -27,8 +27,9 @@ type AlgInitRequest struct {
 
 // AlgStartRequest 算法启动请求
 type AlgStartRequest struct {
-	T uint      `json:"t"`
-	R []float64 `json:"r"`
+	T uint        `json:"t"`
+	R []float64   `json:"r"` // 新的数据
+	Q [][]float64 `json:"Q"` // 队列
 }
 
 // AlgResponse 算法服务响应
@@ -115,15 +116,23 @@ func (s *System) Start(userDataList []UserData) error {
 		return fmt.Errorf("算法服务未初始化")
 	}
 
-	// 如果已经在运行，停止之前的运行
-	// 在现有数据基础上增加数据，继续执行
-	if s.IsRunning {
-		s.stopAlgorithm()
+	// 根据UserID找到对应的用户索引并增加数据
+	for _, userData := range userDataList {
+		for i, user := range s.Users {
+			if user.ID == userData.UserID {
+				s.R[i] += userData.DataSize
+				break
+			}
+		}
 	}
 
-	// 启动轮询
-	s.IsRunning = true
-	go s.runAlgorithmLoop(userDataList)
+	// 如果已经在运行，在现有数据基础上增加数据，继续执行
+	if !s.IsRunning {
+		// 启动轮询
+		s.IsRunning = true
+		go s.runAlgorithmLoop()
+
+	}
 
 	return nil
 }
@@ -162,19 +171,9 @@ func (s *System) initAlgService() error {
 }
 
 // runAlgorithmLoop 运行算法轮询
-func (s *System) runAlgorithmLoop(userDataList []UserData) {
+func (s *System) runAlgorithmLoop() {
 	ticker := time.NewTicker(1 * time.Second) // 每秒轮询
 	defer ticker.Stop()
-
-	// 根据UserID找到对应的用户索引并设置数据
-	for _, userData := range userDataList {
-		for i, user := range s.Users {
-			if user.ID == userData.UserID {
-				s.R[i] = userData.DataSize
-				break
-			}
-		}
-	}
 
 	for {
 		select {
@@ -200,11 +199,23 @@ func (s *System) executeOneIteration() bool {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// 提取当前待处理数据，并清空
+	// 提取当前待处理数据，并清空；有可能执行过程中会有新的数据产生
 	r := make([]float64, len(s.Users))
 	copy(r, s.R)
 	for i := range s.R {
 		s.R[i] = 0
+	}
+
+	// 获取最新状态的队列
+	lastIdx := len(s.States) - 1
+	var Q [][]float64
+	if lastIdx >= 0 {
+		Q = s.States[lastIdx].QNext
+	} else {
+		Q = make([][]float64, len(s.Users))
+		for i := range Q {
+			Q[i] = make([]float64, len(s.Comms))
+		}
 	}
 
 	fmt.Println("当前时隙:", s.T)
@@ -213,6 +224,7 @@ func (s *System) executeOneIteration() bool {
 	jsonData, err := json.Marshal(AlgStartRequest{
 		T: s.T,
 		R: r,
+		Q: Q,
 	})
 	if err != nil {
 		fmt.Printf("序列化算法请求失败: %v\n", err)
@@ -260,24 +272,37 @@ func (s *System) executeOneIteration() bool {
 		s.States = append(s.States, state)
 		s.T++
 
-		fmt.Printf("状态已更新, 状态: %+v\n", state)
+		QMid := make([]float64, len(s.Comms))
+		for i := range state.QNext {
+			for j := range state.QNext[i] {
+				QMid[j] += state.QNext[i][j]
+			}
+		}
+		fmt.Printf("状态已更新, 当前通信队列: %+v\n", QMid)
 
-		// 检查是否处理完毕（可以根据实际情况判断）
-		// 这里简单判断：如果所有队列都为空，则认为处理完毕
-		allEmpty := true
+		// 检查是否处理完毕：所有队列且待处理数据均为空，则认为处理完毕
+		allQEmpty := true
 		for _, qCol := range state.QNext {
 			for _, q := range qCol {
 				if q > 0.001 { // 考虑浮点精度
-					allEmpty = false
+					allQEmpty = false
 					break
 				}
 			}
-			if !allEmpty {
+			if !allQEmpty {
 				break
 			}
 		}
 
-		if allEmpty {
+		allREmpty := true
+		for _, rVal := range r {
+			if rVal > 0.001 { // 考虑浮点精度
+				allREmpty = false
+				break
+			}
+		}
+
+		if allQEmpty && allREmpty {
 			fmt.Println("所有队列已处理完毕，算法停止")
 			return true // 处理完毕，停止轮询
 		}
@@ -319,14 +344,41 @@ func (s *System) GetSystemInfo() map[string]interface{} {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	return map[string]interface{}{
-		"user_count":      len(s.Users),
-		"comm_count":      len(s.Comms),
-		"current_slot":    s.T,
-		"state_history":   len(s.States),
-		"is_running":      s.IsRunning,
-		"is_initialized":  s.IsInitialized,
-		"alg_service_url": s.AlgServiceURL,
+	// 当前状态
+	state := s.GetCurrentState()
+
+	if s.IsRunning {
+		return map[string]interface{}{
+			"user_count":     len(s.Users),
+			"comm_count":     len(s.Comms),
+			"time_slot":      s.T,
+			"each_queue":     state.CalcRowQueue(),
+			"queue":          state.CalcQueueAvg(),
+			"delay":          state.ComputeDelay + state.TransferDelay,
+			"energy":         state.ComputeEnergy + state.TransferEnergy,
+			"utilization":    state.CalcResourceUtil(),
+			"drift":          state.Drift,
+			"penalty":        state.Penalty,
+			"cost":           state.Cost,
+			"is_running":     s.IsRunning,
+			"is_initialized": s.IsInitialized,
+		}
+	} else {
+		return map[string]interface{}{
+			"user_count":     len(s.Users),
+			"comm_count":     len(s.Comms),
+			"time_slot":      s.T,
+			"each_queue":     make([]float64, len(s.Comms)), // 如果没有运行，队列长度为0
+			"queue":          0,
+			"delay":          0,
+			"energy":         0,
+			"utilization":    0,
+			"drift":          0,
+			"penalty":        0,
+			"cost":           0,
+			"is_running":     s.IsRunning,
+			"is_initialized": s.IsInitialized,
+		}
 	}
 }
 

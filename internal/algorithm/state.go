@@ -27,3 +27,47 @@ type State struct {
 	TransferDelay  float64 `json:"transfer_delay"`  // 传输延迟
 	Load           float64 `json:"load"`            // 系统负载
 }
+
+// 计算资源利用率
+func (s *State) CalcResourceUtil() float64 {
+	totalF := 0.0
+	if s.F == nil {
+		return 0.0 // 避免除以零
+	}
+	for _, f := range s.F {
+		for _, val := range f {
+			totalF += val
+		}
+	}
+	return totalF / float64(len(s.F[0]))
+}
+
+// 计算平均队列长度
+func (s *State) CalcQueueAvg() float64 {
+	totalQ := 0.0
+	if s.Q == nil {
+		return 0.0 // 避免除以零
+	}
+	for _, q := range s.Q {
+		for _, val := range q {
+			totalQ += val
+		}
+	}
+	return totalQ / float64(len(s.Q)*len(s.Q[0]))
+}
+
+// 计算列的总队列长度
+func (s *State) CalcRowQueue() []float64 {
+	rowQ := make([]float64, len(s.Q[0]))
+	if s.Q == nil {
+		return rowQ // 避免除以零
+	}
+
+	for _, q := range s.Q {
+		for j, val := range q {
+			rowQ[j] += val
+		}
+	}
+
+	return rowQ
+}
