@@ -56,6 +56,9 @@ func main() {
 	// 添加Swagger文档路由
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
+	// 设置静态文件目录
+	router.Static("/static", "./static")
+
 	// 展示Swagger文档
 	log.Println("Swagger文档地址: http://localhost:" + cfg.Port + "/swagger/index.html")
 
