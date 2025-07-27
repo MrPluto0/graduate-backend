@@ -9,6 +9,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// BatchUpdateNodesPositionRequest 批量更新节点位置请求
+type BatchUpdateNodesPositionRequest struct {
+	Nodes []models.Node `json:"nodes" binding:"required,dive"` // 节点列表，只需要ID、X、Y字段
+}
+
 type NetworkHandler struct {
 	networkService *service.NetworkService
 }
@@ -332,4 +337,35 @@ func (h *NetworkHandler) GetTopology(c *gin.Context) {
 	}
 
 	utils.Success(c, topology)
+}
+
+// BatchUpdateNodesPosition godoc
+// @Summary 批量更新节点位置
+// @Description 批量更新网络拓扑中的节点位置坐标
+// @Tags 网络管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body BatchUpdateNodesPositionRequest true "批量更新位置请求"
+// @Success 200 {object} utils.Response
+// @Failure 400 {object} utils.Response
+// @Router /network/nodes/batch-position [patch]
+func (h *NetworkHandler) BatchUpdateNodesPosition(c *gin.Context) {
+	var request BatchUpdateNodesPositionRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		utils.Error(c, utils.VALIDATION_ERROR, err.Error())
+		return
+	}
+
+	if len(request.Nodes) == 0 {
+		utils.Error(c, utils.VALIDATION_ERROR, "节点列表不能为空")
+		return
+	}
+
+	if err := h.networkService.BatchUpdateNodesPosition(request.Nodes); err != nil {
+		utils.Error(c, utils.ERROR, err.Error())
+		return
+	}
+
+	utils.SuccessWithMessage(c, nil, "批量更新节点位置成功")
 }

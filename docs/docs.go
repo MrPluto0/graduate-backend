@@ -1170,6 +1170,51 @@ const docTemplate = `{
                 }
             }
         },
+        "/network/nodes/batch-position": {
+            "patch": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "批量更新网络拓扑中的节点位置坐标",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "网络管理"
+                ],
+                "summary": "批量更新节点位置",
+                "parameters": [
+                    {
+                        "description": "批量更新位置请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.BatchUpdateNodesPositionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/utils.Response"
+                        }
+                    }
+                }
+            }
+        },
         "/network/nodes/{id}": {
             "get": {
                 "security": [
@@ -1620,14 +1665,20 @@ const docTemplate = `{
                     "description": "队列状态",
                     "type": "array",
                     "items": {
-                        "type": "number"
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        }
                     }
                 },
                 "Q_next": {
                     "description": "下一时刻队列长度",
                     "type": "array",
                     "items": {
-                        "type": "number"
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        }
                     }
                 },
                 "compute_delay": {
@@ -1643,10 +1694,13 @@ const docTemplate = `{
                     "type": "number"
                 },
                 "delta": {
-                    "description": "通信资源分配",
+                    "description": "决策变量",
                     "type": "array",
                     "items": {
-                        "type": "number"
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        }
                     }
                 },
                 "drift": {
@@ -1657,14 +1711,20 @@ const docTemplate = `{
                     "description": "卸载决策",
                     "type": "array",
                     "items": {
-                        "type": "number"
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        }
                     }
                 },
                 "f": {
-                    "description": "决策变量",
+                    "description": "计算资源分配",
                     "type": "array",
                     "items": {
-                        "type": "number"
+                        "type": "array",
+                        "items": {
+                            "type": "number"
+                        }
                     }
                 },
                 "load": {
@@ -1674,6 +1734,13 @@ const docTemplate = `{
                 "penalty": {
                     "description": "惩罚项",
                     "type": "number"
+                },
+                "r": {
+                    "description": "用户待处理数据",
+                    "type": "array",
+                    "items": {
+                        "type": "number"
+                    }
                 },
                 "t": {
                     "description": "基本状态信息",
@@ -1710,6 +1777,21 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/algorithm.UserData"
+                    }
+                }
+            }
+        },
+        "handlers.BatchUpdateNodesPositionRequest": {
+            "type": "object",
+            "required": [
+                "nodes"
+            ],
+            "properties": {
+                "nodes": {
+                    "description": "节点列表，只需要ID、X、Y字段",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/models.Node"
                     }
                 }
             }

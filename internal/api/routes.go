@@ -103,8 +103,7 @@ func SetupRoutes(router *gin.Engine) {
 
 		// 网络管理路由
 		network := protected.Group("/network")
-		{
-			// 节点管理
+		{ // 节点管理
 			nodes := network.Group("/nodes")
 			{
 				nodes.GET("", networkHandler.ListNodes)
@@ -112,6 +111,7 @@ func SetupRoutes(router *gin.Engine) {
 				nodes.GET("/:id", networkHandler.GetNode)
 				nodes.PUT("/:id", networkHandler.UpdateNode)
 				nodes.DELETE("/:id", networkHandler.DeleteNode)
+				nodes.PATCH("/batch-position", networkHandler.BatchUpdateNodesPosition) // 批量更新节点位置
 			}
 
 			// 链路管理

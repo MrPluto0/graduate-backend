@@ -120,3 +120,23 @@ func (r *LinkRepository) Count(filters map[string]interface{}) (int64, error) {
 	err := query.Count(&count).Error
 	return count, err
 }
+
+// ReplaceAll 清空并添加新的链路
+func (r *LinkRepository) ReplaceAll(links []models.Link) error {
+	// 使用事务确保操作的原子性
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		// 清空所有现有链路
+		if err := tx.Where("1 = 1").Delete(&models.Link{}).Error; err != nil {
+			return err
+		}
+
+		// 批量插入新的链路
+		if len(links) > 0 {
+			if err := tx.Create(&links).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+}

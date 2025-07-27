@@ -123,3 +123,37 @@ func (r *NodeRepository) Count(filters map[string]interface{}) (int64, error) {
 	err := query.Count(&count).Error
 	return count, err
 }
+
+// BatchUpdatePositions 批量更新节点位置
+func (r *NodeRepository) BatchUpdatePositions(nodes []models.Node) error {
+	if len(nodes) == 0 {
+		return nil
+	}
+
+	// 使用事务确保原子性
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		for _, node := range nodes {
+			// 更新每个节点的位置
+			err := tx.Model(&models.Node{}).
+				Where("id = ?", node.ID).
+				Updates(map[string]interface{}{
+					"x": node.X,
+					"y": node.Y,
+				}).Error
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// GetByIDs 根据ID列表获取节点
+func (r *NodeRepository) GetByIDs(ids []uint) ([]models.Node, error) {
+	var nodes []models.Node
+	err := r.db.Preload("Device").Where("id IN ?", ids).Find(&nodes).Error
+	if err != nil {
+		return nil, err
+	}
+	return nodes, nil
+}

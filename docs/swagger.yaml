@@ -5,12 +5,16 @@ definitions:
       Q:
         description: 队列状态
         items:
-          type: number
+          items:
+            type: number
+          type: array
         type: array
       Q_next:
         description: 下一时刻队列长度
         items:
-          type: number
+          items:
+            type: number
+          type: array
         type: array
       compute_delay:
         description: 计算延迟
@@ -22,9 +26,11 @@ definitions:
         description: 性能指标
         type: number
       delta:
-        description: 通信资源分配
+        description: 决策变量
         items:
-          type: number
+          items:
+            type: number
+          type: array
         type: array
       drift:
         description: 漂移值
@@ -32,12 +38,16 @@ definitions:
       epsilon:
         description: 卸载决策
         items:
-          type: number
+          items:
+            type: number
+          type: array
         type: array
       f:
-        description: 决策变量
+        description: 计算资源分配
         items:
-          type: number
+          items:
+            type: number
+          type: array
         type: array
       load:
         description: 系统负载
@@ -45,6 +55,11 @@ definitions:
       penalty:
         description: 惩罚项
         type: number
+      r:
+        description: 用户待处理数据
+        items:
+          type: number
+        type: array
       t:
         description: 基本状态信息
         type: integer
@@ -71,6 +86,16 @@ definitions:
         items:
           $ref: '#/definitions/algorithm.UserData'
         type: array
+    type: object
+  handlers.BatchUpdateNodesPositionRequest:
+    properties:
+      nodes:
+        description: 节点列表，只需要ID、X、Y字段
+        items:
+          $ref: '#/definitions/models.Node'
+        type: array
+    required:
+    - nodes
     type: object
   handlers.LoginRequest:
     properties:
@@ -1164,6 +1189,34 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: 更新节点
+      tags:
+      - 网络管理
+  /network/nodes/batch-position:
+    patch:
+      consumes:
+      - application/json
+      description: 批量更新网络拓扑中的节点位置坐标
+      parameters:
+      - description: 批量更新位置请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.BatchUpdateNodesPositionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/utils.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: 批量更新节点位置
       tags:
       - 网络管理
   /network/topology:

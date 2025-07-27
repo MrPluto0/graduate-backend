@@ -169,3 +169,60 @@ func (s *NetworkService) GetTopology() (*TopologyData, error) {
 		Links: links,
 	}, nil
 }
+
+// BatchUpdateNodesPosition 批量更新节点位置
+func (s *NetworkService) BatchUpdateNodesPosition(nodes []models.Node) error {
+	if len(nodes) == 0 {
+		return errors.New("节点位置列表不能为空")
+	}
+
+	// 提取所有节点ID
+	var nodeIDs []uint
+	for _, node := range nodes {
+		nodeIDs = append(nodeIDs, node.ID)
+	}
+
+	// 检查所有节点是否存在
+	existingNodes, err := s.nodeRepo.GetByIDs(nodeIDs)
+	if err != nil {
+		return err
+	}
+
+	// 验证所有请求的节点都存在
+	if len(existingNodes) != len(nodes) {
+		existingIDMap := make(map[uint]bool)
+		for _, node := range existingNodes {
+			existingIDMap[node.ID] = true
+		}
+
+		var missingIDs []uint
+		for _, node := range nodes {
+			if !existingIDMap[node.ID] {
+				missingIDs = append(missingIDs, node.ID)
+			}
+		}
+
+		if len(missingIDs) > 0 {
+			return errors.New("部分节点不存在")
+		}
+	}
+
+	// 执行批量更新
+	return s.nodeRepo.BatchUpdatePositions(nodes)
+}
+
+// 依据拓扑连接规则，对网络结构进行更新：
+// 1. 用户节点只连接距离最近的UAV
+// 2. UAV只连接距离在给定范围内的其他UAV
+
+const Radius = 1000
+
+// func (s *NetworkService) RefreshNetworkTopo(nodes []models.Node) error {
+// 	links, err := s.linkRepo.List(nil)
+// 	if err != nil {
+// 		return errors.New("获取网络链路失败")
+// 	}
+
+// 	newLinks := make([]models.Link, 0)
+
+// }

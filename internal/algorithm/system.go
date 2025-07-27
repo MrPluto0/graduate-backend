@@ -7,6 +7,7 @@ import (
 	"go-backend/internal/models"
 	"go-backend/internal/repository"
 	"go-backend/pkg/database"
+	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -80,8 +81,9 @@ func GetSystemInstance() *System {
 		systemInst.R = make([]float64, len(systemInst.Users))
 		// 在系统初始化时调用一次算法服务初始化
 		if err := systemInst.initAlgService(); err != nil {
-			fmt.Printf("算法服务初始化失败: %v\n", err)
+			log.Printf("资源调度算法服务初始化失败: %v\n", err)
 		} else {
+			log.Println("资源调度算法服务初始化成功")
 			systemInst.IsInitialized = true
 		}
 	})
@@ -113,7 +115,7 @@ func (s *System) Start(userDataList []UserData) error {
 
 	// 检查算法服务是否已初始化
 	if !s.IsInitialized {
-		return fmt.Errorf("算法服务未初始化")
+		return fmt.Errorf("资源调度算法服务未初始化")
 	}
 
 	// 根据UserID找到对应的用户索引并增加数据
@@ -164,7 +166,7 @@ func (s *System) initAlgService() error {
 	}
 
 	if algResp.Code != 0 {
-		return fmt.Errorf("算法服务初始化失败: %s", algResp.Message)
+		return fmt.Errorf("资源调度算法服务初始化失败: %s", algResp.Message)
 	}
 
 	return nil
@@ -218,8 +220,8 @@ func (s *System) executeOneIteration() bool {
 		}
 	}
 
-	fmt.Println("当前时隙:", s.T)
-	fmt.Println("用户数据:", r)
+	log.Println("当前时隙:", s.T)
+	log.Println("用户数据:", r)
 
 	jsonData, err := json.Marshal(AlgStartRequest{
 		T: s.T,
@@ -227,30 +229,33 @@ func (s *System) executeOneIteration() bool {
 		Q: Q,
 	})
 	if err != nil {
-		fmt.Printf("序列化算法请求失败: %v\n", err)
+		log.Printf("序列化算法请求失败: %v\n", err)
 		return true // 错误时停止
 	}
 
 	// 调用算法服务
+	s.mutex.Unlock()
 	resp, err := s.httpClient.Post(
 		s.AlgServiceURL+"/alg/start",
 		"application/json",
 		bytes.NewBuffer(jsonData),
 	)
+	s.mutex.Lock()
+
 	if err != nil {
-		fmt.Printf("调用算法接口失败: %v\n", err)
+		log.Printf("调用算法接口失败: %v\n", err)
 		return true // 错误时停止
 	}
 	defer resp.Body.Close()
 
 	var algResp AlgResponse
 	if err := json.NewDecoder(resp.Body).Decode(&algResp); err != nil {
-		fmt.Printf("解析算法响应失败: %v\n", err)
+		log.Printf("解析算法响应失败: %v\n", err)
 		return true // 错误时停止
 	}
 
 	if algResp.Code != 0 {
-		fmt.Printf("算法执行失败: %s\n", algResp.Message)
+		log.Printf("算法执行失败: %s\n", algResp.Message)
 		return true // 错误时停止
 	}
 
@@ -258,13 +263,13 @@ func (s *System) executeOneIteration() bool {
 	if algResp.Data != nil {
 		stateData, err := json.Marshal(algResp.Data)
 		if err != nil {
-			fmt.Printf("序列化状态数据失败: %v\n", err)
+			log.Printf("序列化状态数据失败: %v\n", err)
 			return true
 		}
 
 		var state State
 		if err := json.Unmarshal(stateData, &state); err != nil {
-			fmt.Printf("解析状态数据失败: %v\n", err)
+			log.Printf("解析状态数据失败: %v\n", err)
 			return true
 		}
 
@@ -278,13 +283,13 @@ func (s *System) executeOneIteration() bool {
 				QMid[j] += state.QNext[i][j]
 			}
 		}
-		fmt.Printf("状态已更新, 当前通信队列: %+v\n", QMid)
+		log.Printf("状态已更新, 当前通信队列: %+v\n", QMid)
 
 		// 检查是否处理完毕：所有队列且待处理数据均为空，则认为处理完毕
 		allQEmpty := true
 		for _, qCol := range state.QNext {
 			for _, q := range qCol {
-				if q > 0.001 { // 考虑浮点精度
+				if q > 0.0001 { // 考虑浮点精度
 					allQEmpty = false
 					break
 				}
@@ -296,14 +301,14 @@ func (s *System) executeOneIteration() bool {
 
 		allREmpty := true
 		for _, rVal := range r {
-			if rVal > 0.001 { // 考虑浮点精度
+			if rVal > 0.0001 { // 考虑浮点精度
 				allREmpty = false
 				break
 			}
 		}
 
 		if allQEmpty && allREmpty {
-			fmt.Println("所有队列已处理完毕，算法停止")
+			log.Println("所有队列已处理完毕，算法停止")
 			return true // 处理完毕，停止轮询
 		}
 	}
@@ -346,40 +351,45 @@ func (s *System) GetSystemInfo() map[string]interface{} {
 
 	// 当前状态
 	state := s.GetCurrentState()
-
-	if s.IsRunning {
-		return map[string]interface{}{
-			"user_count":     len(s.Users),
-			"comm_count":     len(s.Comms),
-			"time_slot":      s.T,
-			"each_queue":     state.CalcRowQueue(),
-			"queue":          state.CalcQueueAvg(),
-			"delay":          state.ComputeDelay + state.TransferDelay,
-			"energy":         state.ComputeEnergy + state.TransferEnergy,
-			"utilization":    state.CalcResourceUtil(),
-			"drift":          state.Drift,
-			"penalty":        state.Penalty,
-			"cost":           state.Cost,
-			"is_running":     s.IsRunning,
-			"is_initialized": s.IsInitialized,
-		}
-	} else {
-		return map[string]interface{}{
-			"user_count":     len(s.Users),
-			"comm_count":     len(s.Comms),
-			"time_slot":      s.T,
-			"each_queue":     make([]float64, len(s.Comms)), // 如果没有运行，队列长度为0
-			"queue":          0,
-			"delay":          0,
-			"energy":         0,
-			"utilization":    0,
-			"drift":          0,
-			"penalty":        0,
-			"cost":           0,
-			"is_running":     s.IsRunning,
-			"is_initialized": s.IsInitialized,
-		}
+	systemInfo := map[string]interface{}{
+		"user_count":     len(s.Users),
+		"comm_count":     len(s.Comms),
+		"is_running":     s.IsRunning,
+		"is_initialized": s.IsInitialized,
+		"time_slot":      s.T,
+		"transfer_path":  map[uint][]uint{},             // 如果没有运行，传输路径为空
+		"each_queue":     make([]float64, len(s.Comms)), // 如果没有运行，队列长度为0
+		"queue":          0,
+		"delay":          0,
+		"energy":         0,
+		"utilization":    0,
+		"drift":          0,
+		"penalty":        0,
+		"cost":           0,
 	}
+
+	if s.IsRunning && state != nil {
+		fmt.Printf("获取当前传输路径信息: %+v \n", state.TransferPath)
+		for userIdx, uavs := range state.TransferPath {
+			userId := s.Users[userIdx].ID
+			paths := make([]uint, 0)
+			paths = append(paths, userId)
+			for _, uav := range uavs {
+				paths = append(paths, s.Comms[uav].ID)
+			}
+			systemInfo["transfer_path"].(map[uint][]uint)[uint(userId)] = paths
+		}
+		systemInfo["each_queue"] = state.CalcRowQueue()
+		systemInfo["queue"] = state.CalcQueueAvg()
+		systemInfo["delay"] = state.ComputeDelay + state.TransferDelay
+		systemInfo["energy"] = state.ComputeEnergy + state.TransferEnergy
+		systemInfo["utilization"] = state.CalcResourceUtil()
+		systemInfo["drift"] = state.Drift
+		systemInfo["penalty"] = state.Penalty
+		systemInfo["cost"] = state.Cost
+	}
+
+	return systemInfo
 }
 
 // SetAlgServiceURL 设置算法服务URL

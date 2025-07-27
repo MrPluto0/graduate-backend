@@ -15,6 +15,8 @@ type State struct {
 	Delta   [][]float64 `json:"delta"`   // 通信资源分配
 	Epsilon [][]float64 `json:"epsilon"` // 卸载决策
 
+	TransferPath [][]int `json:"transfer_path"` // 数据传输路径
+
 	// 性能指标
 	Cost    float64 `json:"cost"`    // 总成本
 	Drift   float64 `json:"drift"`   // 漂移值
