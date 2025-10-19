@@ -83,25 +83,6 @@ func (h *AlgorithmHandler) GetSystemInfo(c *gin.Context) {
 	utils.Success(c, info)
 }
 
-// GetCurrentState godoc
-// @Summary 获取当前状态
-// @Description 获取算法当前执行状态
-// @Tags 算法管理
-// @Accept json
-// @Produce json
-// @Security ApiKeyAuth
-// @Success 200 {object} utils.Response{data=algorithm.State}
-// @Failure 404 {object} utils.Response
-// @Router /algorithm/state [get]
-func (h *AlgorithmHandler) GetCurrentState(c *gin.Context) {
-	state := h.system.GetCurrentState()
-	if state == nil {
-		utils.Error(c, utils.NOT_FOUND, "暂无算法执行状态")
-		return
-	}
-	utils.Success(c, state)
-}
-
 // GetStateHistory godoc
 // @Summary 获取状态历史
 // @Description 获取算法执行的状态历史记录

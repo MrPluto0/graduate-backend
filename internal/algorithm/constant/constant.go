@@ -1,13 +1,13 @@
-package algorithm
+package constant
 
 // 系统基本参数
 const (
 	// 设备高度，单位：米
 	H = 30
 	// 系统时隙，单位：秒
-	Slot = 1
+	Slot = 0.05
 	// 通信半径，单位：米
-	Radius = 1000
+	Radius = 400
 	// 资源利用率
 	Eta = 0.9
 )
@@ -15,7 +15,7 @@ const (
 // 控制参数
 const (
 	// 迭代次数
-	Iters = 50
+	Iters = 20
 	// 控制参数V
 	V = 100
 	// 收缩参数

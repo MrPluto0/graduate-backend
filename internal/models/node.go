@@ -48,8 +48,8 @@ type Node struct {
 	DeletedAt   *time.Time `json:"deleted_at,omitempty" gorm:"index"`         // 删除时间
 	Name        string     `json:"name" gorm:"size:100;not null;uniqueIndex"` // 节点名称
 	NodeType    NodeType   `json:"node_type" gorm:"size:50;index"`            // 节点类型
-	X           int        `json:"x"`                                         // X坐标
-	Y           int        `json:"y"`                                         // Y坐标
+	X           float64    `json:"x"`                                         // X坐标
+	Y           float64    `json:"y"`                                         // Y坐标
 	Properties  Properties `json:"properties,omitempty" gorm:"type:json"`     // 节点属性(JSON格式)
 	DeviceID    *uint      `json:"device_id,omitempty" gorm:"index"`          // 关联的设备ID
 	Device      *Device    `json:"device,omitempty"`                          // 关联的设备
