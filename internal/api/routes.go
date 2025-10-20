@@ -54,7 +54,6 @@ func SetupRoutes(router *gin.Engine) {
 			algorithm.POST("/start", algorithmHandler.StartAlgorithm)
 			algorithm.POST("/stop", algorithmHandler.StopAlgorithm)
 			algorithm.GET("/info", algorithmHandler.GetSystemInfo)
-			algorithm.GET("/history", algorithmHandler.GetStateHistory)
 			algorithm.POST("/clear", algorithmHandler.ClearHistory)
 		}
 	}

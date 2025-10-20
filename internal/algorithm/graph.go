@@ -2,6 +2,7 @@ package algorithm
 
 import (
 	"go-backend/internal/algorithm/constant"
+	"go-backend/internal/algorithm/define"
 	"go-backend/internal/algorithm/utils"
 	"math"
 	"math/rand"
@@ -84,31 +85,35 @@ func (g *Graph) calcByFloyd() {
 	g.ShortPaths = result.Paths
 }
 
-// 调度器：为每个用户选择最优计算节点
-func (g *Graph) Scheduler(state State) State {
-	U := len(g.System.Users)
+// 任务维度调度器：为每个任务选择最优计算节点
+func (g *Graph) Scheduler(state *TaskState, tasks []*define.Task) *TaskState {
 	B := len(g.System.Comms)
+	taskCount := len(tasks)
 
-	// 随机打乱用户顺序
-	userIndices := make([]int, U)
-	for i := range userIndices {
-		userIndices[i] = i
+	// 随机打乱任务顺序
+	taskIndices := make([]int, taskCount)
+	for i := range taskIndices {
+		taskIndices[i] = i
 	}
-	rand.Shuffle(U, func(i, j int) {
-		userIndices[i], userIndices[j] = userIndices[j], userIndices[i]
+	rand.Shuffle(taskCount, func(i, j int) {
+		taskIndices[i], taskIndices[j] = taskIndices[j], taskIndices[i]
 	})
 
 	nextState := state.Copy()
 
-	for _, userIdx := range userIndices {
-		user := g.System.Users[userIdx]
-
-		if state.R[userIdx] == 0 {
+	for _, taskIdx := range taskIndices {
+		task := tasks[taskIdx]
+		alloc, ok := nextState.Allocations[task.TaskID]
+		if !ok || alloc.R == 0 {
 			continue
 		}
 
-		bestCost := math.Inf(1)
-		var bestState State
+		// 获取任务对应的用户
+		userIdx := task.UserIndex
+		if userIdx < 0 || userIdx >= len(g.System.Users) {
+			continue
+		}
+		user := g.System.Users[userIdx]
 
 		// 找到用户最近的通信设备索引
 		startIdx := -1
@@ -123,7 +128,10 @@ func (g *Graph) Scheduler(state State) State {
 			continue
 		}
 
-		// 遍历所有可能的计算节点，选择成本最低的方案
+		bestCost := math.Inf(1)
+		var bestState *TaskState
+
+		// 遍历所有可能的计算节点,选择成本最低的方案
 		for endIdx := range B {
 			var path []int
 			if startIdx == endIdx {
@@ -138,11 +146,7 @@ func (g *Graph) Scheduler(state State) State {
 			}
 
 			tempState := nextState.Copy()
-			tempState.UpdateDelta(userIdx, endIdx)
-			tempState.UpdateEpsilon(userIdx, path, user.Speed, g.CommMat)
-			tempState.UpdateF()
-			tempState.ComputeData()
-
+			tempState.AssignTask(task.TaskID, endIdx, path, user.Speed, g.CommMat, g.System)
 			cost := tempState.Objective()
 
 			if cost < bestCost {
@@ -151,14 +155,14 @@ func (g *Graph) Scheduler(state State) State {
 			}
 		}
 
-		if bestCost < math.Inf(1) {
+		if bestCost < math.Inf(1) && bestState != nil {
 			nextState = bestState
+			// 最佳分配已经在 bestState 中设置好了，不需要再手动赋值
 		}
 	}
 
-	// 最终更新资源分配
-	nextState.UpdateF()
-	nextState.ComputeData()
+	// 最终计算一次完整的指标
+	nextState.Objective()
 
 	return nextState
 }
