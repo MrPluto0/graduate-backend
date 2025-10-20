@@ -118,7 +118,7 @@ func (s *State) CalcRowQueue() []float64 {
 	return rowQ
 }
 
-// Copy 深拷贝状态
+// 深拷贝状态
 func (s *State) Copy() State {
 	// 先浅拷贝结构体（拷贝所有基本类型字段）
 	newState := *s
@@ -153,19 +153,17 @@ func (s *State) Copy() State {
 	return newState
 }
 
-// UpdateDelta 更新通信资源分配（用户i选择通信设备j）
+// 更新通信资源分配（用户i选择通信设备j）
 func (s *State) UpdateDelta(userIdx, commIdx int) {
 	// 将资源分配给选定的通信设备
 	s.Delta[userIdx][commIdx] = 1
 }
 
-// UpdateEpsilon 更新卸载决策（根据传输路径和速率）
+// 更新卸载决策（根据传输路径和速率）
 func (s *State) UpdateEpsilon(userIdx int, jList []int, userSpeed float64, speeds [][]float64) {
-	// 保存传输路径
 	s.TransferPath[userIdx] = make([]int, len(jList))
 	copy(s.TransferPath[userIdx], jList)
 
-	// 根据路径更新卸载决策
 	for idx, j := range jList {
 		s.Epsilon[userIdx][j] = 1
 		// 起始节点的上一条路径连接用户终端，后面的节点上一条路径连接UAV
@@ -182,8 +180,7 @@ func (s *State) UpdateEpsilon(userIdx int, jList []int, userSpeed float64, speed
 	}
 }
 
-// UpdateF 更新计算资源分配
-// 更新中间队列状态：Q_mid = Q + delta * r
+// 更新计算资源分配：Q_mid = Q + delta * r
 func (s *State) UpdateF() {
 	numUsers := len(s.Q)
 	numComms := len(s.Q[0])
@@ -210,7 +207,7 @@ func (s *State) UpdateF() {
 	}
 }
 
-// ComputeData 计算数据处理相关的指标
+// 计算数据处理相关的指标：
 // R = delta * r（已收到的数据）
 // F = s.F * C * Slot / Rho（能够处理的数据）
 // Q_next = Q + R - F（下一时刻队列长度）

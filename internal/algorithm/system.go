@@ -13,26 +13,25 @@ import (
 	"time"
 )
 
-// UserData 用户新产生的数据
 type UserData struct {
 	UserID   uint    `json:"user_id"`   // 用户ID
 	DataSize float64 `json:"data_size"` // 数据大小（比特）
-	// TaskType string  `json:"task_type"` // 任务类型
+	TaskType string  `json:"task_type"` // 任务类型
 }
 
 type System struct {
 	Users []*define.UserDevice // 用户设备列表
 	Comms []*define.CommDevice // 通信设备列表
 
-	T      uint      // 当前系统时隙
-	R      []float64 // 用户待处理数据列表
-	States []State   // 系统状态
-	Graph  *Graph    // 系统图结构
+	T      uint      // 当前时隙
+	R      []float64 // 用户待处理数据
+	States []State   // 状态历史
+	Graph  *Graph    // 网络拓扑图
 
-	IsRunning     bool         // 是否正在运行
-	IsInitialized bool         // 算法是否已初始化
-	StopChan      chan bool    // 停止信号
-	mutex         sync.RWMutex // 读写锁保护并发访问
+	IsRunning     bool         // 是否运行中
+	IsInitialized bool         // 是否已初始化
+	StopChan      chan bool    // 停止信号通道
+	mutex         sync.RWMutex // 并发锁
 }
 
 var (
@@ -40,18 +39,13 @@ var (
 	once sync.Once
 )
 
-// GetSystemInstance 初始化并获取系统单例实例
 func GetSystemInstance() *System {
 	once.Do(func() {
 		sys = &System{
-			Users:         make([]*define.UserDevice, 0),
-			Comms:         make([]*define.CommDevice, 0),
-			T:             0,
-			R:             nil, // 初始化为0长度切片
-			States:        make([]State, 0),
-			IsRunning:     false,
-			IsInitialized: false,
-			StopChan:      make(chan bool, 1),
+			Users:    make([]*define.UserDevice, 0),
+			Comms:    make([]*define.CommDevice, 0),
+			States:   make([]State, 0),
+			StopChan: make(chan bool, 1),
 		}
 		sys.loadNodesFromDB()
 		sys.Graph = NewGraph(sys)
@@ -61,7 +55,7 @@ func GetSystemInstance() *System {
 	return sys
 }
 
-// loadNodesFromDB 从数据库加载节点信息
+// 从数据库加载节点信息
 func (s *System) loadNodesFromDB() {
 	db := database.GetDB()
 	nodeRepo := repository.NewNodeRepository(db)
@@ -80,17 +74,14 @@ func (s *System) loadNodesFromDB() {
 	}
 }
 
-// Start 启动算法，处理用户数据
 func (s *System) Start(userDataList []UserData) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// 检查算法服务是否已初始化
 	if !s.IsInitialized {
 		return fmt.Errorf("资源调度算法服务未初始化")
 	}
 
-	// 根据UserID找到对应的用户索引并增加数据
 	for _, userData := range userDataList {
 		for i, user := range s.Users {
 			if user.ID == userData.UserID {
@@ -100,20 +91,17 @@ func (s *System) Start(userDataList []UserData) error {
 		}
 	}
 
-	// 如果已经在运行，在现有数据基础上增加数据，否则启动轮询
 	if !s.IsRunning {
-		// 启动轮询
 		s.IsRunning = true
 		go s.runAlgorithmLoop()
-
 	}
 
 	return nil
 }
 
-// runAlgorithmLoop 运行算法轮询
+// 运行算法轮询
 func (s *System) runAlgorithmLoop() {
-	ticker := time.NewTicker(1 * time.Second) // 每秒轮询
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	for {
@@ -124,7 +112,6 @@ func (s *System) runAlgorithmLoop() {
 			s.mutex.Unlock()
 			return
 		case <-ticker.C:
-			// 执行一次算法
 			s.executeOneIteration()
 			if s.isFinished() {
 				log.Println("所有数据处理完成，算法停止")
@@ -137,19 +124,18 @@ func (s *System) runAlgorithmLoop() {
 	}
 }
 
-// executeOneIteration 执行一次算法迭代
+// 执行一次算法迭代
 func (s *System) executeOneIteration() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	// 提取当前待处理数据，并清空；有可能执行过程中会有新的数据产生
+	// 读取当前待处理数据量、队列状态
 	R := make([]float64, len(s.R))
 	copy(R, s.R)
 	for i := range s.R {
 		s.R[i] = 0
 	}
 
-	// 获取最新状态的队列
 	var Q [][]float64
 	if len(s.States) > 0 {
 		Q = s.States[len(s.States)-1].QNext
@@ -160,33 +146,26 @@ func (s *System) executeOneIteration() {
 		}
 	}
 
-	// 调用算法服务
-	iter := 0
+	s.T++
 	U := len(s.Users)
-	s.T += 1
+	maxIter := min(constant.Iters, int(math.Pow(2, float64(U))))
 
-	// 初始化状态
 	bestCost := math.Inf(1)
 	bestState := State{}
 
-	for iter < constant.Iters && iter < int(math.Pow(2, float64(U))) {
-		iter++
-
-		// 调度并获取新状态
+	for iter := 0; iter < maxIter; iter++ {
 		state := NewState(s)
 		state.R = R
 		state.Q = Q
 		newState := s.Graph.Scheduler(*state)
 		cost := newState.Objective()
 
-		// 更新最佳决策方案
 		prevCost := bestCost
 		if cost < bestCost {
 			bestCost = cost
 			bestState = newState
 		}
 
-		// 如果改进很小，提前退出
 		if math.Abs(cost-prevCost) < constant.Bias {
 			break
 		}
@@ -194,46 +173,42 @@ func (s *System) executeOneIteration() {
 
 	s.States = append(s.States, bestState)
 
-	log.Println("时隙", s.T, "算法迭代完成，最佳成本:", bestCost)
 	totalQ := make([]float64, len(s.Comms))
 	for i := range bestState.QNext {
 		for j := range bestState.QNext[i] {
 			totalQ[j] += bestState.QNext[i][j]
 		}
 	}
-	log.Printf("各通信设备队列长度: %+v\n", totalQ)
-	log.Printf("各用户传输路径: %+v\n", bestState.TransferPath)
+	log.Printf("时隙 %d 完成，成本: %.2f, 队列: %+v\n", s.T, bestCost, totalQ)
+	log.Printf("传输路径：%+v\n", bestState.TransferPath)
 }
 
-// isFinished 判断算法是否完成（没有待处理的数据）
+// 判断算法是否完成
 func (s *System) isFinished() bool {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	// 1. 检查是否有新产生的待处理数据
 	for _, r := range s.R {
 		if r > 0 {
-			return false // 还有新数据要处理
+			return false
 		}
 	}
 
-	// 2. 检查队列中是否还有积压的数据
 	if len(s.States) > 0 {
 		lastState := s.States[len(s.States)-1]
 		for i := range lastState.QNext {
 			for j := range lastState.QNext[i] {
-				if lastState.QNext[i][j] > 0.001 { // 使用小阈值避免浮点数精度问题
-					return false // 队列中还有数据
+				if lastState.QNext[i][j] > 0.001 {
+					return false
 				}
 			}
 		}
 	}
 
-	// 所有数据都已处理完成
 	return true
 }
 
-// StopAlgorithm 外部调用停止算法
+// 停止算法
 func (s *System) StopAlgorithm() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
@@ -245,7 +220,7 @@ func (s *System) StopAlgorithm() {
 	}
 }
 
-// GetSystemInfo 获取系统信息
+// 获取系统信息
 func (s *System) GetSystemInfo() map[string]interface{} {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -295,12 +270,11 @@ func (s *System) GetSystemInfo() map[string]interface{} {
 	return systemInfo
 }
 
-// GetStateHistory 获取状态历史
+// 获取状态历史
 func (s *System) GetStateHistory() []State {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	// 深拷贝，避免外部修改
 	history := make([]State, len(s.States))
 	for i := range s.States {
 		history[i] = s.States[i].Copy()
@@ -308,7 +282,7 @@ func (s *System) GetStateHistory() []State {
 	return history
 }
 
-// ClearHistory 清除历史状态
+// 清除历史状态
 func (s *System) ClearHistory() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
