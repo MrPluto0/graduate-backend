@@ -32,7 +32,7 @@ func (tm *TaskManager) AddTask(base define.TaskBase) (*define.Task, error) {
 	return task.Copy(), nil
 }
 
-// getActiveTasks 获取所有活跃任务（未完成的任务）
+// 获取所有活跃任务（未完成的任务）
 func (tm *TaskManager) getActiveTasks() []*define.Task {
 	tasks := make([]*define.Task, 0, len(tm.ActiveTasks))
 	for _, taskID := range tm.ActiveTasks {
@@ -43,7 +43,7 @@ func (tm *TaskManager) getActiveTasks() []*define.Task {
 	return tasks
 }
 
-// updateFromTaskState 从TaskState快照同步结果到Task
+// 从TaskState快照同步结果到Task
 func (tm *TaskManager) updateFromTaskState(state *TaskState, tasks []*define.Task, sys *System) {
 	for _, task := range tasks {
 		snap, ok := state.Snapshots[task.TaskID]
@@ -52,22 +52,15 @@ func (tm *TaskManager) updateFromTaskState(state *TaskState, tasks []*define.Tas
 		}
 
 		if snap.AssignedCommID > 0 {
-			// 同步分配结果（直接使用ID）
-			task.AssignedCommID = snap.AssignedCommID
-			task.TransferPath = snap.TransferPath.Copy()
-
-			// 更新队列和已处理数据
+			// 同步快照结果
 			processed := snap.CurrentQueue + snap.PendingTransferData - snap.NextQueue
 			if processed > 0 {
 				task.ProcessedData += processed
 			}
 			task.QueuedData = snap.NextQueue
 			task.AllocResource = snap.ResourceFraction
-
-			// 同步性能指标到 Task.Metrics（直接拷贝整个结构体）
-			if task.Metrics == nil {
-				task.Metrics = &define.TaskMetrics{}
-			}
+			task.AssignedCommID = snap.AssignedCommID
+			task.TransferPath = snap.TransferPath.Copy()
 			*task.Metrics = snap.Metrics
 
 			// 更新任务状态
@@ -93,7 +86,7 @@ func (tm *TaskManager) updateFromTaskState(state *TaskState, tasks []*define.Tas
 	tm.updateActiveTasksList()
 }
 
-// updateActiveTasksList 更新活跃任务列表（移除已完成和失败的任务）
+// 更新活跃任务列表（移除已完成和失败的任务）
 func (tm *TaskManager) updateActiveTasksList() {
 	newActive := make([]string, 0)
 
@@ -109,9 +102,4 @@ func (tm *TaskManager) updateActiveTasksList() {
 	}
 
 	tm.ActiveTasks = newActive
-}
-
-// hasActiveTasks 检查是否有活跃任务
-func (tm *TaskManager) hasActiveTasks() bool {
-	return len(tm.ActiveTasks) > 0
 }

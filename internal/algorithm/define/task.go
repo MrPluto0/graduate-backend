@@ -31,51 +31,49 @@ type TaskMetrics struct {
 	TotalEnergy    float64 `json:"total_energy"`    // 总能耗
 }
 
-// TaskSnapshot 任务快照（调度计算的临时数据）
-type TaskSnapshot struct {
-	TaskID string `json:"task_id"` // 任务ID
-
-	// 当前状态（从 Task 拷贝）
-	Status        TaskStatus `json:"status"`         // 任务状态
-	QueuedData    float64    `json:"queued_data"`    // 当前队列
-	ProcessedData float64    `json:"processed_data"` // 已处理数据
-
-	// 调度分配结果（直接使用ID）
-	AssignedCommID uint          `json:"assigned_comm_id"` // 分配的通信设备ID
-	TransferPath   *TransferPath `json:"transfer_path"`    // 传输路径（包含预计算的速率和功率）
-
-	// 调度过程的临时变量
-	PendingTransferData float64 `json:"-"` // 本轮待传输数据
-	CurrentQueue        float64 `json:"-"` // 当前队列（计算用）
-	NextQueue           float64 `json:"-"` // 下一时隙队列
-	IntermediateQueue   float64 `json:"-"` // 中间队列
-	ResourceFraction    float64 `json:"-"` // 分配的资源比例
-
-	// 计算出的性能指标（复用 TaskMetrics 类型）
-	Metrics TaskMetrics `json:"metrics"`
-}
-
+// Task 任务（持久化对象）
 type Task struct {
+	// 基础信息
 	TaskID     string    `json:"task_id"`
 	UserID     uint      `json:"user_id"`
 	DataSize   float64   `json:"data_size"`
 	TaskType   string    `json:"task_type"`
 	CreateTime time.Time `json:"create_time"`
 
-	Status         TaskStatus    `json:"status"`
-	AssignedCommID uint          `json:"assigned_comm_id"` // 分配的计算节点
-	TransferPath   *TransferPath `json:"transfer_path"`    // 传输路径（包含预计算信息）
+	// 状态
+	Status TaskStatus `json:"status"`
 
-	AllocResource float64 `json:"allocated_resource"` // 分配的计算资源比例
-	QueuedData    float64 `json:"queued_data"`        // 队列中的数据量
-	ProcessedData float64 `json:"processed_data"`     // 已处理的数据量
+	// 调度结果
+	AssignedCommID uint          `json:"assigned_comm_id"`   // 分配的计算节点
+	TransferPath   *TransferPath `json:"transfer_path"`      // 传输路径
+	AllocResource  float64       `json:"allocated_resource"` // 分配的计算资源比例
+	QueuedData     float64       `json:"queued_data"`        // 队列中的数据量
+	ProcessedData  float64       `json:"processed_data"`     // 已处理的数据量
 
+	// 时间
 	ScheduledTime time.Time `json:"scheduled_time"` // 调度时间
 	StartTime     time.Time `json:"start_time"`     // 开始处理时间
 	CompleteTime  time.Time `json:"complete_time"`  // 完成时间
 
 	// 性能指标
-	Metrics *TaskMetrics `json:"metrics,omitempty"` // 性能指标（可选）
+	Metrics *TaskMetrics `json:"metrics,omitempty"`
+}
+
+// TaskSnapshot 调度快照（纯计算临时数据，不持久化）
+type TaskSnapshot struct {
+	TaskID string `json:"task_id"` // 关联的任务ID（通过此ID查询Task获取其他信息）
+
+	// 本轮调度分配结果（会写回Task）
+	AssignedCommID   uint          `json:"assigned_comm_id"`
+	TransferPath     *TransferPath `json:"transfer_path"`
+	ResourceFraction float64       `json:"-"` // 本轮分配的资源比例
+
+	// 纯临时计算变量（不写回Task）
+	PendingTransferData float64     `json:"-"`       // 本轮待传输数据
+	CurrentQueue        float64     `json:"-"`       // 当前队列
+	NextQueue           float64     `json:"-"`       // 下一时隙队列
+	IntermediateQueue   float64     `json:"-"`       // 中间队列
+	Metrics             TaskMetrics `json:"metrics"` // 本轮性能指标
 }
 
 func NewTask(base TaskBase) *Task {
@@ -86,6 +84,7 @@ func NewTask(base TaskBase) *Task {
 		TaskType:   base.TaskType,
 		CreateTime: time.Now(),
 		Status:     TaskPending,
+		Metrics:    &TaskMetrics{},
 	}
 }
 

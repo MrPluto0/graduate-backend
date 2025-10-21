@@ -114,7 +114,7 @@ func (g *Graph) calcByFloyd() {
 }
 
 // 任务维度调度器：为每个任务选择最优计算节点
-func (g *Graph) Scheduler(state *TaskState, tasks []*define.Task) *TaskState {
+func (g *Graph) Schedule(state *TaskState, tasks []*define.Task) *TaskState {
 	// 创建任务切片的副本并打乱顺序
 	shuffledTasks := make([]*define.Task, len(tasks))
 	copy(shuffledTasks, tasks)
@@ -131,7 +131,7 @@ func (g *Graph) Scheduler(state *TaskState, tasks []*define.Task) *TaskState {
 		}
 
 		// 只为 Pending 状态的任务分配设备（锁定机制）
-		if snap.Status != define.TaskPending {
+		if task.Status != define.TaskPending {
 			continue
 		}
 

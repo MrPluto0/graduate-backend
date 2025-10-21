@@ -19,11 +19,11 @@ type System struct {
 	UserMap map[uint]*define.UserDevice // 用户ID -> 用户设备（快速查找）
 	CommMap map[uint]*define.CommDevice // 通信设备ID -> 通信设备（快速查找）
 
-	T            uint         // 当前时隙
-	Graph        *Graph       // 网络拓扑图
-	TaskManager  *TaskManager // 任务管理器
-	CurrentState *TaskState   // 当前最优状态（包含所有性能指标）
+	T           uint         // 当前时隙
+	Graph       *Graph       // 网络拓扑图
+	TaskManager *TaskManager // 任务管理器
 
+	CurrentState  *TaskState   // 当前最优状态（包含所有性能指标）
 	IsRunning     bool         // 是否运行中
 	IsInitialized bool         // 是否已初始化
 	StopChan      chan bool    // 停止信号通道
@@ -159,7 +159,7 @@ func (s *System) executeOneIteration() {
 
 	for iter := 0; iter < maxIter; iter++ {
 		tempState := taskState.Copy()
-		newState := s.Graph.Scheduler(tempState, activeTasks)
+		newState := s.Graph.Schedule(tempState, activeTasks)
 		cost := newState.Cost
 
 		prevCost := bestCost
@@ -183,15 +183,15 @@ func (s *System) executeOneIteration() {
 	// 更新任务状态（同步到Task.Metrics）
 	s.TaskManager.updateFromTaskState(bestState, activeTasks, s)
 
-	log.Printf("时隙 %d 完成，成本: %.2f, 任务数: %d\n", s.T, bestCost, len(activeTasks))
-	log.Printf("通信设备队列: %+v\n", bestState.CommQueues)
+	log.Printf("[时隙 %d]\n成本: %.2f, 任务数: %d", s.T, bestCost, len(activeTasks))
+	log.Printf("通信设备队列: %+v", bestState.CommQueues)
 }
 
 func (s *System) isFinished() bool {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
-	return !s.TaskManager.hasActiveTasks()
+	return len(s.TaskManager.ActiveTasks) == 0
 }
 
 // 停止算法
@@ -230,7 +230,7 @@ func (s *System) GetSystemInfo() map[string]interface{} {
 	// 从 TaskManager 获取任务统计
 	if s.TaskManager != nil {
 		systemInfo["task_count"] = len(s.TaskManager.Tasks)
-		systemInfo["active_tasks"] = len(s.TaskManager.getActiveTasks())
+		systemInfo["active_tasks"] = len(s.TaskManager.ActiveTasks)
 
 		completedCount := 0
 		transferPaths := make(map[string][]uint)

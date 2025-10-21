@@ -33,24 +33,18 @@ func NewTaskState(t uint, tasks []*define.Task, sys *System) *TaskState {
 
 	for _, task := range tasks {
 		// 计算本时隙需要传输的数据量
-		var pendingTransferData float64
-		if task.AssignedCommID == 0 {
+		pendingTransferData := 0.0
+		if task.Status == define.TaskPending {
 			// 未分配：需要传输全部剩余数据
 			pendingTransferData = task.DataSize - task.ProcessedData
-		} else {
-			// 已分配：不再传输，只处理队列中的数据
-			pendingTransferData = 0
 		}
 
 		snapshot := &define.TaskSnapshot{
 			TaskID:              task.TaskID,
-			Status:              task.Status, // 继承任务状态
-			QueuedData:          task.QueuedData,
-			ProcessedData:       task.ProcessedData,
 			AssignedCommID:      task.AssignedCommID,      // 继承已有的分配
 			TransferPath:        task.TransferPath.Copy(), // 继承已有路径（深拷贝）
 			PendingTransferData: pendingTransferData,
-			CurrentQueue:        task.QueuedData,
+			CurrentQueue:        task.QueuedData, // 继承当前队列
 		}
 
 		snapshots[task.TaskID] = snapshot
@@ -71,46 +65,21 @@ func NewTaskState(t uint, tasks []*define.Task, sys *System) *TaskState {
 
 // Copy 深拷贝
 func (ts *TaskState) Copy() *TaskState {
-	// 拷贝 CommQueues map
-	newCommQueues := make(map[uint]float64)
+	newState := *ts
+	newState.CommQueues = make(map[uint]float64, len(ts.CommQueues))
 	for id, q := range ts.CommQueues {
-		newCommQueues[id] = q
+		newState.CommQueues[id] = q
 	}
 
-	newState := &TaskState{
-		T:              ts.T,
-		Snapshots:      make(map[string]*define.TaskSnapshot),
-		CommQueues:     newCommQueues,
-		Cost:           ts.Cost,
-		Drift:          ts.Drift,
-		Penalty:        ts.Penalty,
-		TotalDelay:     ts.TotalDelay,
-		TotalEnergy:    ts.TotalEnergy,
-		Load:           ts.Load,
-		TransferDelay:  ts.TransferDelay,
-		ComputeDelay:   ts.ComputeDelay,
-		TransferEnergy: ts.TransferEnergy,
-		ComputeEnergy:  ts.ComputeEnergy,
-	}
-
+	// 深拷贝 Snapshots map
+	newState.Snapshots = make(map[string]*define.TaskSnapshot, len(ts.Snapshots))
 	for taskID, snap := range ts.Snapshots {
-		newState.Snapshots[taskID] = &define.TaskSnapshot{
-			TaskID:              snap.TaskID,
-			Status:              snap.Status,
-			QueuedData:          snap.QueuedData,
-			ProcessedData:       snap.ProcessedData,
-			AssignedCommID:      snap.AssignedCommID,
-			TransferPath:        snap.TransferPath.Copy(),
-			PendingTransferData: snap.PendingTransferData,
-			CurrentQueue:        snap.CurrentQueue,
-			NextQueue:           snap.NextQueue,
-			IntermediateQueue:   snap.IntermediateQueue,
-			ResourceFraction:    snap.ResourceFraction,
-			Metrics:             snap.Metrics, // 直接拷贝结构体
-		}
+		newSnap := *snap                                // 浅拷贝所有基本类型
+		newSnap.TransferPath = snap.TransferPath.Copy() // 深拷贝 TransferPath
+		newState.Snapshots[taskID] = &newSnap
 	}
 
-	return newState
+	return &newState
 }
 
 // 为任务分配计算设备,并设置传输路径
@@ -156,11 +125,9 @@ func (ts *TaskState) UpdateResourceAlloc() {
 func (ts *TaskState) ComputeNextQueue() {
 	for _, snap := range ts.Snapshots {
 		if snap.AssignedCommID > 0 {
-			// 收到的数据
-			receivedData := snap.PendingTransferData
-			// 能够处理的数据
-			processedData := snap.ResourceFraction * constant.C * constant.Slot / constant.Rho
 			// 下一时隙队列 = 当前队列 + 收到数据 - 处理数据
+			receivedData := snap.PendingTransferData
+			processedData := snap.ResourceFraction * constant.C * constant.Slot / constant.Rho
 			snap.NextQueue = snap.CurrentQueue + receivedData - processedData
 
 			if snap.NextQueue < 0 {
@@ -180,12 +147,13 @@ func (ts *TaskState) ComputeNextQueue() {
 	}
 }
 
-// ComputeMetrics 计算性能指标
+// 计算性能指标
 func (ts *TaskState) ComputeMetrics() {
 	ts.TransferDelay = 0.0
 	ts.ComputeDelay = 0.0
 	ts.TransferEnergy = 0.0
 	ts.ComputeEnergy = 0.0
+	ts.Load = 0.0
 	ts.Drift = 0.0
 
 	for _, snap := range ts.Snapshots {
@@ -230,21 +198,15 @@ func (ts *TaskState) ComputeMetrics() {
 		// 赋值给 snapshot
 		snap.Metrics = metrics
 
-		// 漂移项: CurrentQueue * (ReceivedData - ProcessedData)
-		receivedData := snap.PendingTransferData
-		processedData := snap.ResourceFraction * constant.C * constant.Slot / constant.Rho
-		drift := snap.CurrentQueue * (receivedData - processedData) / (constant.Shrink * constant.Shrink)
-		ts.Drift += drift
+		ts.Load += (snap.NextQueue + snap.CurrentQueue) / 2
+
+		// Lyapunov 漂移项: 使用队列长度的平方差
+		// Drift = (Q_next^2 - Q^2) / 2
+		queueDiff := (snap.NextQueue*snap.NextQueue - snap.CurrentQueue*snap.CurrentQueue) / 2.0
+		ts.Drift += queueDiff / (constant.Shrink * constant.Shrink)
 	}
 
 	// 计算负载：所有通信设备的平均队列
-	ts.Load = 0.0
-	for _, snap := range ts.Snapshots {
-		if snap.AssignedCommID > 0 {
-			avgQueue := (snap.NextQueue + snap.CurrentQueue) / 2
-			ts.Load += avgQueue
-		}
-	}
 	ts.Load = ts.Load / constant.Shrink
 
 	// 总延迟和能耗
@@ -258,7 +220,7 @@ func (ts *TaskState) ComputeMetrics() {
 	ts.Cost = ts.Drift + constant.V*ts.Penalty
 }
 
-// Objective 计算并返回目标函数值
+// 计算并返回目标函数值
 func (ts *TaskState) Objective() float64 {
 	ts.UpdateResourceAlloc()
 	ts.ComputeNextQueue()

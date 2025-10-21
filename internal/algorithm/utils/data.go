@@ -1,11 +1,13 @@
 package utils
 
 import (
-	"fmt"
-	"math/rand"
-	"time"
+	"crypto/rand"
+	"encoding/hex"
 )
 
 func GenerateTaskID() string {
-	return fmt.Sprintf("task_%d_%d", time.Now().UnixNano(), rand.Int63())
+	// 生成 8 字节随机数,转换为 16 位十六进制字符串
+	bytes := make([]byte, 8)
+	rand.Read(bytes)
+	return hex.EncodeToString(bytes)
 }
