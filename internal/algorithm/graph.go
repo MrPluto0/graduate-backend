@@ -10,14 +10,15 @@ import (
 
 type Graph struct {
 	System     *System
-	CommMat    [][]float64 // 通信设备间速率矩阵
-	ShortPaths [][][]int   // 最短路径矩阵
+	CommMat    map[uint]map[uint]float64              // 通信设备间速率矩阵 [commID][commID]
+	ShortPaths map[uint]map[uint]*define.TransferPath // 最短路径 [startID][endID]TransferPath（包含路径、速率、功率）
 }
 
 func NewGraph(system *System) *Graph {
 	graph := &Graph{
-		System:  system,
-		CommMat: [][]float64{},
+		System:     system,
+		CommMat:    make(map[uint]map[uint]float64),
+		ShortPaths: make(map[uint]map[uint]*define.TransferPath),
 	}
 
 	graph.constructGraph()
@@ -32,99 +33,117 @@ func (g *Graph) constructGraph() {
 		user.CalcNearest(g.System.Comms)
 	}
 
-	// 初始化通信设备间速率矩阵
-	B := len(g.System.Comms)
-	speeds := make([][]float64, B)
-	for i := range speeds {
-		speeds[i] = make([]float64, B)
-		for j := range speeds[i] {
-			speeds[i][j] = -1
-		}
-	}
+	// 初始化通信设备间速率矩阵 (使用ID作为key)
+	for i, commI := range g.System.Comms {
+		g.CommMat[commI.ID] = make(map[uint]float64)
 
-	for i := range B {
-		for j := range B {
-			if speeds[i][j] != -1 {
-				continue
-			} else if i == j {
-				speeds[i][j] = math.Inf(1)
-				continue
+		for j, commJ := range g.System.Comms {
+			if i == j {
+				g.CommMat[commI.ID][commJ.ID] = math.Inf(1)
 			} else {
-				d := utils.Distance(g.System.Comms[i].X, g.System.Comms[i].Y, g.System.Comms[j].X, g.System.Comms[j].Y)
+				d := utils.Distance(commI.X, commI.Y, commJ.X, commJ.Y)
 				if d > constant.Radius {
-					speeds[i][j] = 0
-					speeds[j][i] = 0
+					g.CommMat[commI.ID][commJ.ID] = 0
 				} else {
 					speed := utils.TransferSpeed(constant.P_b, d)
-					speeds[i][j] = speed
-					speeds[j][i] = speed
+					g.CommMat[commI.ID][commJ.ID] = speed
 				}
 			}
 		}
 	}
-
-	g.CommMat = speeds
 }
 
 // Floyd算法计算最短路径
 func (g *Graph) calcByFloyd() {
-	// 将速率的倒数作为权重（和时间呈正相关）
-	weight := make([][]float64, len(g.CommMat))
-	for i := range g.CommMat {
-		weight[i] = make([]float64, len(g.CommMat))
-		for j := range g.CommMat[i] {
-			if g.CommMat[i][j] == 0 {
+	n := len(g.System.Comms)
+
+	// 构建基于索引的权重矩阵（Floyd 算法需要）
+	weight := make([][]float64, n)
+	for i := range weight {
+		weight[i] = make([]float64, n)
+		commI := g.System.Comms[i]
+		for j := range weight[i] {
+			commJ := g.System.Comms[j]
+			speed := g.CommMat[commI.ID][commJ.ID]
+			if speed == 0 {
 				weight[i][j] = math.Inf(1)
 			} else {
-				weight[i][j] = 1 / g.CommMat[i][j]
+				weight[i][j] = 1 / speed
 			}
 		}
 	}
 
+	// 执行 Floyd 算法（基于索引）
 	result := utils.Floyd(weight)
-	g.ShortPaths = result.Paths
+
+	// 将结果转换为基于 ID 的 TransferPath 对象
+	for i, commI := range g.System.Comms {
+		g.ShortPaths[commI.ID] = make(map[uint]*define.TransferPath)
+		for j, commJ := range g.System.Comms {
+			indexPath := result.Paths[i][j]
+			idPath := make([]uint, len(indexPath))
+			for k, idx := range indexPath {
+				idPath[k] = g.System.Comms[idx].ID
+			}
+
+			// 构建 TransferPath,预计算 Speeds 和 Powers
+			transferPath := &define.TransferPath{
+				Path:   idPath,
+				Speeds: make([]float64, len(idPath)),
+				Powers: make([]float64, len(idPath)),
+			}
+
+			// 预计算每段的传输速度和功率
+			for k := 0; k < len(idPath); k++ {
+				if k == 0 {
+					// 第一段:用户到第一个通信设备，速度和功率在 AssignTask 时根据 user.Speed 计算
+					transferPath.Speeds[k] = 0 // 占位,稍后填充
+					transferPath.Powers[k] = 0 // 占位,稍后填充
+				} else {
+					// 后续段:通信设备之间
+					prevID := idPath[k-1]
+					currID := idPath[k]
+					transferPath.Speeds[k] = g.CommMat[prevID][currID]
+					transferPath.Powers[k] = constant.P_b
+				}
+			}
+
+			g.ShortPaths[commI.ID][commJ.ID] = transferPath
+		}
+	}
 }
 
 // 任务维度调度器：为每个任务选择最优计算节点
 func (g *Graph) Scheduler(state *TaskState, tasks []*define.Task) *TaskState {
-	B := len(g.System.Comms)
-	taskCount := len(tasks)
-
-	// 随机打乱任务顺序
-	taskIndices := make([]int, taskCount)
-	for i := range taskIndices {
-		taskIndices[i] = i
-	}
-	rand.Shuffle(taskCount, func(i, j int) {
-		taskIndices[i], taskIndices[j] = taskIndices[j], taskIndices[i]
+	// 创建任务切片的副本并打乱顺序
+	shuffledTasks := make([]*define.Task, len(tasks))
+	copy(shuffledTasks, tasks)
+	rand.Shuffle(len(shuffledTasks), func(i, j int) {
+		shuffledTasks[i], shuffledTasks[j] = shuffledTasks[j], shuffledTasks[i]
 	})
 
 	nextState := state.Copy()
 
-	for _, taskIdx := range taskIndices {
-		task := tasks[taskIdx]
-		alloc, ok := nextState.Allocations[task.TaskID]
-		if !ok || alloc.R == 0 {
+	for _, task := range shuffledTasks {
+		snap, ok := nextState.Snapshots[task.TaskID]
+		if !ok || snap.PendingTransferData == 0 {
+			continue
+		}
+
+		// 只为 Pending 状态的任务分配设备（锁定机制）
+		if snap.Status != define.TaskPending {
 			continue
 		}
 
 		// 获取任务对应的用户
-		userIdx := task.UserIndex
-		if userIdx < 0 || userIdx >= len(g.System.Users) {
+		user, ok := g.System.UserMap[task.UserID]
+		if !ok {
 			continue
 		}
-		user := g.System.Users[userIdx]
 
-		// 找到用户最近的通信设备索引
-		startIdx := -1
-		for i, comm := range g.System.Comms {
-			if comm.ID == user.Nearest {
-				startIdx = i
-				break
-			}
-		}
-
-		if startIdx == -1 || startIdx >= len(g.ShortPaths) {
+		// 获取用户最近的通信设备 ID
+		startCommID := user.Nearest
+		if _, ok := g.ShortPaths[startCommID]; !ok {
 			continue
 		}
 
@@ -132,21 +151,17 @@ func (g *Graph) Scheduler(state *TaskState, tasks []*define.Task) *TaskState {
 		var bestState *TaskState
 
 		// 遍历所有可能的计算节点,选择成本最低的方案
-		for endIdx := range B {
-			var path []int
-			if startIdx == endIdx {
-				path = []int{startIdx}
-			} else if endIdx < len(g.ShortPaths[startIdx]) {
-				path = g.ShortPaths[startIdx][endIdx]
-				if len(path) == 0 {
-					continue
-				}
-			} else {
+		for _, endComm := range g.System.Comms {
+			endCommID := endComm.ID
+
+			// 获取从 startCommID 到 endCommID 的 TransferPath
+			transferPath, ok := g.ShortPaths[startCommID][endCommID]
+			if !ok || len(transferPath.Path) == 0 {
 				continue
 			}
 
 			tempState := nextState.Copy()
-			tempState.AssignTask(task.TaskID, endIdx, path, user.Speed, g.CommMat, g.System)
+			tempState.AssignTask(task.TaskID, endCommID, transferPath, user.Speed)
 			cost := tempState.Objective()
 
 			if cost < bestCost {
@@ -157,7 +172,6 @@ func (g *Graph) Scheduler(state *TaskState, tasks []*define.Task) *TaskState {
 
 		if bestCost < math.Inf(1) && bestState != nil {
 			nextState = bestState
-			// 最佳分配已经在 bestState 中设置好了，不需要再手动赋值
 		}
 	}
 

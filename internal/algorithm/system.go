@@ -14,13 +14,15 @@ import (
 )
 
 type System struct {
-	Users []*define.UserDevice // 用户设备列表
-	Comms []*define.CommDevice // 通信设备列表
+	Users   []*define.UserDevice        // 用户设备列表
+	Comms   []*define.CommDevice        // 通信设备列表
+	UserMap map[uint]*define.UserDevice // 用户ID -> 用户设备（快速查找）
+	CommMap map[uint]*define.CommDevice // 通信设备ID -> 通信设备（快速查找）
 
-	T           uint   // 当前时隙
-	Graph       *Graph // 网络拓扑图
-	TaskManager *TaskManager
-	LatestState *TaskState // 最新的任务状态（包含所有计算好的指标）
+	T            uint         // 当前时隙
+	Graph        *Graph       // 网络拓扑图
+	TaskManager  *TaskManager // 任务管理器
+	CurrentState *TaskState   // 当前最优状态（包含所有性能指标）
 
 	IsRunning     bool         // 是否运行中
 	IsInitialized bool         // 是否已初始化
@@ -38,6 +40,8 @@ func GetSystemInstance() *System {
 		sys = &System{
 			Users:    make([]*define.UserDevice, 0),
 			Comms:    make([]*define.CommDevice, 0),
+			UserMap:  make(map[uint]*define.UserDevice),
+			CommMap:  make(map[uint]*define.CommDevice),
 			StopChan: make(chan bool, 1),
 		}
 		sys.loadNodesFromDB()
@@ -60,9 +64,13 @@ func (s *System) loadNodesFromDB() {
 	for _, node := range nodes {
 		switch node.NodeType {
 		case models.NodeTypeUser:
-			s.Users = append(s.Users, define.NewUserDevice(node))
+			userDevice := define.NewUserDevice(node)
+			s.Users = append(s.Users, userDevice)
+			s.UserMap[userDevice.ID] = userDevice
 		case models.NodeTypeComm:
-			s.Comms = append(s.Comms, define.NewCommDevice(node))
+			commDevice := define.NewCommDevice(node)
+			s.Comms = append(s.Comms, commDevice)
+			s.CommMap[commDevice.ID] = commDevice
 		}
 	}
 }
@@ -71,19 +79,12 @@ func (s *System) SubmitTask(req define.TaskBase) (*define.Task, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	userIdx := -1
-	for i, user := range s.Users {
-		if user.ID == req.UserID {
-			userIdx = i
-			break
-		}
-	}
-	if userIdx == -1 {
+	// 使用 Map 快速查找用户
+	if _, exists := s.UserMap[req.UserID]; !exists {
 		return nil, fmt.Errorf("用户不存在: %d", req.UserID)
 	}
 
 	task, err := s.TaskManager.AddTask(req)
-
 	if err != nil {
 		return nil, err
 	}
@@ -149,14 +150,12 @@ func (s *System) executeOneIteration() {
 	s.T++
 
 	// 创建任务维度的状态
-	taskState := NewTaskState(s.T, activeTasks, len(s.Comms))
+	taskState := NewTaskState(s.T, activeTasks, s)
 
 	// 多次迭代寻找最优解
-	taskCount := len(activeTasks)
-	maxIter := min(constant.Iters, int(math.Pow(2, float64(taskCount))))
-
-	bestCost := math.Inf(1)
 	var bestState *TaskState
+	bestCost := math.Inf(1)
+	maxIter := min(constant.Iters, len(activeTasks))
 
 	for iter := 0; iter < maxIter; iter++ {
 		tempState := taskState.Copy()
@@ -178,10 +177,10 @@ func (s *System) executeOneIteration() {
 		return
 	}
 
-	// 保存最新状态
-	s.LatestState = bestState
+	// 保存当前最优状态
+	s.CurrentState = bestState
 
-	// 更新任务状态
+	// 更新任务状态（同步到Task.Metrics）
 	s.TaskManager.updateFromTaskState(bestState, activeTasks, s)
 
 	log.Printf("时隙 %d 完成，成本: %.2f, 任务数: %d\n", s.T, bestCost, len(activeTasks))
@@ -218,8 +217,8 @@ func (s *System) GetSystemInfo() map[string]interface{} {
 		"is_running":      s.IsRunning,
 		"is_initialized":  s.IsInitialized,
 		"time_slot":       s.T,
-		"transfer_path":   map[string][]uint{}, // 任务ID -> 传输路径
-		"each_queue":      make([]float64, len(s.Comms)),
+		"transfer_path":   map[string][]uint{},    // 任务ID -> 传输路径
+		"each_queue":      make(map[uint]float64), // commID -> 队列长度
 		"queue":           0.0,
 		"delay":           0.0,
 		"energy":          0.0,
@@ -234,33 +233,31 @@ func (s *System) GetSystemInfo() map[string]interface{} {
 		systemInfo["active_tasks"] = len(s.TaskManager.getActiveTasks())
 
 		completedCount := 0
+		transferPaths := make(map[string][]uint)
+
 		for _, task := range s.TaskManager.Tasks {
 			if task.Status == define.TaskCompleted {
 				completedCount++
 			}
-		}
-		systemInfo["completed_tasks"] = completedCount
-	}
-
-	// 从最新的 TaskState 获取计算好的指标
-	if s.LatestState != nil {
-		transferPaths := make(map[string][]uint)
-
-		for taskID, alloc := range s.LatestState.Allocations {
-			// 收集传输路径（已经是ID列表，直接使用）
-			if len(alloc.TransferPath) > 0 {
-				transferPaths[taskID] = alloc.TransferPath
+			// 收集传输路径
+			if task.TransferPath != nil && len(task.TransferPath.Path) > 0 {
+				transferPaths[task.TaskID] = task.TransferPath.Path
 			}
 		}
 
+		systemInfo["completed_tasks"] = completedCount
 		systemInfo["transfer_path"] = transferPaths
-		systemInfo["each_queue"] = s.LatestState.CommQueues
-		systemInfo["queue"] = s.LatestState.Load
-		systemInfo["delay"] = s.LatestState.TotalDelay
-		systemInfo["energy"] = s.LatestState.TotalEnergy
-		systemInfo["cost"] = s.LatestState.Cost
-		systemInfo["drift"] = s.LatestState.Drift
-		systemInfo["penalty"] = s.LatestState.Penalty
+	}
+
+	// 从 CurrentState 获取系统级指标
+	if s.CurrentState != nil {
+		systemInfo["each_queue"] = s.CurrentState.CommQueues
+		systemInfo["queue"] = s.CurrentState.Load
+		systemInfo["delay"] = s.CurrentState.TotalDelay
+		systemInfo["energy"] = s.CurrentState.TotalEnergy
+		systemInfo["cost"] = s.CurrentState.Cost
+		systemInfo["drift"] = s.CurrentState.Drift
+		systemInfo["penalty"] = s.CurrentState.Penalty
 	}
 
 	return systemInfo
@@ -272,12 +269,11 @@ func (s *System) ClearHistory() {
 	defer s.mutex.Unlock()
 
 	s.T = 0
-	s.LatestState = nil
+	s.CurrentState = nil
 	// 清除所有任务
 	if s.TaskManager != nil {
 		s.TaskManager.Tasks = make(map[string]*define.Task)
 		s.TaskManager.UserTasks = make(map[uint][]string)
-		s.TaskManager.PendingTasks = make([]string, 0)
 		s.TaskManager.ActiveTasks = make([]string, 0)
 	}
 }
