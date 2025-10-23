@@ -1,6 +1,7 @@
 package define
 
 import (
+	"go-backend/internal/algorithm/constant"
 	"go-backend/internal/algorithm/utils"
 	"time"
 )
@@ -16,32 +17,19 @@ const (
 )
 
 type TaskBase struct {
-	UserID   uint
-	DataSize float64
-	TaskType string
-}
-
-// TaskMetrics 任务性能指标
-type TaskMetrics struct {
-	TransferDelay  float64 `json:"transfer_delay"`  // 传输延迟
-	ComputeDelay   float64 `json:"compute_delay"`   // 计算延迟
-	TotalDelay     float64 `json:"total_delay"`     // 总延迟
-	TransferEnergy float64 `json:"transfer_energy"` // 传输能耗
-	ComputeEnergy  float64 `json:"compute_energy"`  // 计算能耗
-	TotalEnergy    float64 `json:"total_energy"`    // 总能耗
+	ID        string     `json:"id,omitempty"`
+	Name      string     `json:"name,omitempty"`
+	Type      string     `json:"type,omitempty"`
+	UserID    uint       `json:"user_id" binding:"required"`
+	DataSize  float64    `json:"data_size" binding:"required"`
+	Priority  int        `json:"priority,omitempty"`
+	Status    TaskStatus `json:"status,omitempty"`
+	CreatedAt time.Time  `json:"create_time,omitempty"`
 }
 
 // Task 任务（持久化对象）
 type Task struct {
-	// 基础信息
-	TaskID     string    `json:"task_id"`
-	UserID     uint      `json:"user_id"`
-	DataSize   float64   `json:"data_size"`
-	TaskType   string    `json:"task_type"`
-	CreateTime time.Time `json:"create_time"`
-
-	// 状态
-	Status TaskStatus `json:"status"`
+	TaskBase
 
 	// 调度结果
 	AssignedCommID uint          `json:"assigned_comm_id"`   // 分配的计算节点
@@ -52,7 +40,6 @@ type Task struct {
 
 	// 时间
 	ScheduledTime time.Time `json:"scheduled_time"` // 调度时间
-	StartTime     time.Time `json:"start_time"`     // 开始处理时间
 	CompleteTime  time.Time `json:"complete_time"`  // 完成时间
 
 	// 性能指标
@@ -61,7 +48,7 @@ type Task struct {
 
 // TaskSnapshot 调度快照（纯计算临时数据，不持久化）
 type TaskSnapshot struct {
-	TaskID string `json:"task_id"` // 关联的任务ID（通过此ID查询Task获取其他信息）
+	ID string `json:"id"` // 关联的任务ID（通过此ID查询Task获取其他信息）
 
 	// 本轮调度分配结果（会写回Task）
 	AssignedCommID   uint          `json:"assigned_comm_id"`
@@ -69,22 +56,64 @@ type TaskSnapshot struct {
 	ResourceFraction float64       `json:"-"` // 本轮分配的资源比例
 
 	// 纯临时计算变量（不写回Task）
-	PendingTransferData float64     `json:"-"`       // 本轮待传输数据
+	PendingTransferData float64     `json:"-"`       // 任务剩余待传输数据总量（DataSize - ProcessedData）
 	CurrentQueue        float64     `json:"-"`       // 当前队列
 	NextQueue           float64     `json:"-"`       // 下一时隙队列
-	IntermediateQueue   float64     `json:"-"`       // 中间队列
+	IntermediateQueue   float64     `json:"-"`       // 中间队列（预测阶段：CurrentQueue + PendingTransferData）
 	Metrics             TaskMetrics `json:"metrics"` // 本轮性能指标
+}
+
+// ComputeMetrics 计算快照的性能指标
+// transferredData: 实际传输的数据量
+// queueData: 队列中的数据量
+func (snap *TaskSnapshot) ComputeMetrics(transferredData, queueData float64) TaskMetrics {
+	metrics := TaskMetrics{}
+
+	// 传输延迟：传输数据通过各段路径的延迟之和
+	if transferredData > 0 && snap.TransferPath != nil {
+		for _, speed := range snap.TransferPath.Speeds {
+			if speed > 0 {
+				metrics.TransferDelay += transferredData / speed
+			}
+		}
+	}
+
+	// 计算延迟：队列数据的计算时间
+	if snap.ResourceFraction > 0 {
+		metrics.ComputeDelay = queueData * constant.Rho / (snap.ResourceFraction * constant.C)
+	}
+
+	// 传输能耗：各段路径的能耗之和
+	if transferredData > 0 && snap.TransferPath != nil {
+		for i, power := range snap.TransferPath.Powers {
+			if i < len(snap.TransferPath.Speeds) && snap.TransferPath.Speeds[i] > 0 {
+				segmentDelay := transferredData / snap.TransferPath.Speeds[i]
+				metrics.TransferEnergy += power * segmentDelay
+			}
+		}
+	}
+
+	// 计算能耗
+	metrics.ComputeEnergy = snap.ResourceFraction * constant.Kappa * constant.C * constant.C * constant.C * constant.Slot
+
+	// 总延迟和总能耗
+	metrics.TotalDelay = metrics.TransferDelay + metrics.ComputeDelay
+	metrics.TotalEnergy = metrics.TransferEnergy + metrics.ComputeEnergy
+
+	return metrics
 }
 
 func NewTask(base TaskBase) *Task {
 	return &Task{
-		TaskID:     utils.GenerateTaskID(),
-		UserID:     base.UserID,
-		DataSize:   base.DataSize,
-		TaskType:   base.TaskType,
-		CreateTime: time.Now(),
-		Status:     TaskPending,
-		Metrics:    &TaskMetrics{},
+		TaskBase: TaskBase{
+			ID:        utils.GenerateTaskID(),
+			UserID:    base.UserID,
+			DataSize:  base.DataSize,
+			Type:      base.Type,
+			CreatedAt: time.Now(),
+			Status:    TaskPending,
+		},
+		Metrics: &TaskMetrics{},
 	}
 }
 

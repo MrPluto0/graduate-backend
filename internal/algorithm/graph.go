@@ -82,11 +82,16 @@ func (g *Graph) calcByFloyd() {
 		for j, commJ := range g.System.Comms {
 			indexPath := result.Paths[i][j]
 			idPath := make([]uint, len(indexPath))
-			for k, idx := range indexPath {
-				idPath[k] = g.System.Comms[idx].ID
+
+			if i == j {
+				indexPath = append(indexPath, i)
+			} else {
+				for k, idx := range indexPath {
+					idPath[k] = g.System.Comms[idx].ID
+				}
 			}
 
-			// 构建 TransferPath,预计算 Speeds 和 Powers
+			// 构建 TransferPath, 预计算 Speeds 和 Powers
 			transferPath := &define.TransferPath{
 				Path:   idPath,
 				Speeds: make([]float64, len(idPath)),
@@ -114,7 +119,7 @@ func (g *Graph) calcByFloyd() {
 }
 
 // 任务维度调度器：为每个任务选择最优计算节点
-func (g *Graph) Schedule(state *TaskState, tasks []*define.Task) *TaskState {
+func (g *Graph) schedule(state *State, tasks []*define.Task) *State {
 	// 创建任务切片的副本并打乱顺序
 	shuffledTasks := make([]*define.Task, len(tasks))
 	copy(shuffledTasks, tasks)
@@ -122,10 +127,10 @@ func (g *Graph) Schedule(state *TaskState, tasks []*define.Task) *TaskState {
 		shuffledTasks[i], shuffledTasks[j] = shuffledTasks[j], shuffledTasks[i]
 	})
 
-	nextState := state.Copy()
+	nextState := state.copy()
 
 	for _, task := range shuffledTasks {
-		snap, ok := nextState.Snapshots[task.TaskID]
+		snap, ok := nextState.Snapshots[task.ID]
 		if !ok || snap.PendingTransferData == 0 {
 			continue
 		}
@@ -148,7 +153,7 @@ func (g *Graph) Schedule(state *TaskState, tasks []*define.Task) *TaskState {
 		}
 
 		bestCost := math.Inf(1)
-		var bestState *TaskState
+		var bestState *State
 
 		// 遍历所有可能的计算节点,选择成本最低的方案
 		for _, endComm := range g.System.Comms {
@@ -160,9 +165,9 @@ func (g *Graph) Schedule(state *TaskState, tasks []*define.Task) *TaskState {
 				continue
 			}
 
-			tempState := nextState.Copy()
-			tempState.AssignTask(task.TaskID, endCommID, transferPath, user.Speed)
-			cost := tempState.Objective()
+			tempState := nextState.copy()
+			tempState.assignTask(task.ID, endCommID, transferPath, user.Speed)
+			cost := tempState.objective()
 
 			if cost < bestCost {
 				bestCost = cost
@@ -176,7 +181,7 @@ func (g *Graph) Schedule(state *TaskState, tasks []*define.Task) *TaskState {
 	}
 
 	// 最终计算一次完整的指标
-	nextState.Objective()
+	nextState.objective()
 
 	return nextState
 }

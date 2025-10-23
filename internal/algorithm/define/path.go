@@ -18,3 +18,23 @@ func (tp *TransferPath) Copy() *TransferPath {
 		Powers: append([]float64(nil), tp.Powers...),
 	}
 }
+
+// CalcEquivalentSpeed 计算等效速度（串行传输模型）
+// 返回：1 / Σ(1/speed_i)
+func (tp *TransferPath) CalcEquivalentSpeed() float64 {
+	if tp == nil || len(tp.Speeds) == 0 {
+		return 0
+	}
+
+	var reciprocalSum float64
+	for _, speed := range tp.Speeds {
+		if speed > 0 {
+			reciprocalSum += 1.0 / speed
+		}
+	}
+
+	if reciprocalSum > 0 {
+		return 1.0 / reciprocalSum
+	}
+	return 0
+}
