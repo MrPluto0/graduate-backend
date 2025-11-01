@@ -139,7 +139,7 @@ func (g *Graph) schedule(state *State, tasks []*define.Task) *State {
 		}
 
 		// 只为 Pending 状态的任务分配设备（锁定机制）
-		if task.Status != define.TaskPending {
+		if !task.StateMachine().IsPending() {
 			continue
 		}
 

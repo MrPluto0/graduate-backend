@@ -169,3 +169,8 @@ func (t *Task) Copy() *Task {
 	}
 	return &newTask
 }
+
+// StateMachine 获取任务的状态机
+func (t *Task) StateMachine() *TaskStateMachine {
+	return NewTaskStateMachine(t)
+}

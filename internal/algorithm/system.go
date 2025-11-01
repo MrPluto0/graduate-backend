@@ -188,7 +188,7 @@ func (s *System) GetSystemInfo() *define.SystemInfo {
 		transferPaths := make(map[string][]uint)
 
 		for _, task := range s.TaskManager.Tasks {
-			if task.Status == define.TaskCompleted {
+			if task.StateMachine().IsCompleted() {
 				completedCount++
 			}
 			// 收集传输路径

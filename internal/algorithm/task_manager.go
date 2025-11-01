@@ -3,8 +3,8 @@ package algorithm
 import (
 	"go-backend/internal/algorithm/constant"
 	"go-backend/internal/algorithm/define"
+	"log"
 	"math"
-	"time"
 )
 
 // 任务管理器
@@ -104,7 +104,7 @@ func (tm *TaskManager) deleteTask(taskID string) bool {
 func (tm *TaskManager) getActiveTasks() []*define.Task {
 	tasks := make([]*define.Task, 0)
 	for _, task := range tm.TaskList {
-		if task.Status != define.TaskCompleted && task.Status != define.TaskFailed {
+		if task.StateMachine().IsActive() {
 			tasks = append(tasks, task)
 		}
 	}
@@ -162,20 +162,28 @@ func (tm *TaskManager) syncFromState(state *State, tasks []*define.Task, sys *Sy
 			task.TransferPath = snap.TransferPath
 			task.TransferPath.Path = append([]uint{task.UserID}, task.TransferPath.Path...)
 
-			// 更新任务状态
-			if task.Status == define.TaskPending {
-				task.Status = define.TaskQueued
-				task.ScheduledTime = time.Now()
+			// 使用状态机管理任务状态转换
+			sm := task.StateMachine()
+
+			// Pending → Queued (任务已分配)
+			if sm.IsPending() {
+				if err := sm.ToQueued(); err != nil {
+					log.Printf("状态转换失败 (Pending→Queued): %v", err)
+				}
 			}
 
-			if newQueuedData > 0 && task.Status == define.TaskQueued {
-				task.Status = define.TaskComputing
+			// Queued → Computing (开始处理数据)
+			if newQueuedData > 0 && sm.IsQueued() {
+				if err := sm.ToComputing(); err != nil {
+					log.Printf("状态转换失败 (Queued→Computing): %v", err)
+				}
 			}
 
-			// 检查是否完成
+			// Computing/Queued → Completed (任务完成)
 			if newQueuedData < 0.001 && newProcessedData >= task.DataSize-0.001 {
-				task.Status = define.TaskCompleted
-				task.CompleteTime = time.Now()
+				if err := sm.ToCompleted(); err != nil {
+					log.Printf("状态转换失败 (→Completed): %v", err)
+				}
 			}
 		}
 	}
