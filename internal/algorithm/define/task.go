@@ -32,18 +32,62 @@ type Task struct {
 	TaskBase
 
 	// 调度结果
-	AssignedCommID uint          `json:"assigned_comm_id"`   // 分配的计算节点
-	TransferPath   *TransferPath `json:"transfer_path"`      // 传输路径
-	AllocResource  float64       `json:"allocated_resource"` // 分配的计算资源比例
-	QueuedData     float64       `json:"queued_data"`        // 队列中的数据量
-	ProcessedData  float64       `json:"processed_data"`     // 已处理的数据量
+	AssignedCommID uint          `json:"assigned_comm_id"` // 分配的计算节点
+	TransferPath   *TransferPath `json:"transfer_path"`    // 传输路径
 
 	// 时间
 	ScheduledTime time.Time `json:"scheduled_time"` // 调度时间
 	CompleteTime  time.Time `json:"complete_time"`  // 完成时间
 
-	// 性能指标
-	Metrics *TaskMetrics `json:"metrics,omitempty"`
+	// 性能指标历史
+	MetricsHistory []SlotMetrics `json:"metrics_history,omitempty"` // 每个时隙的执行历史
+}
+
+// 辅助方法：获取当前时隙的性能指标
+func (t *Task) GetCurrentMetrics() *TaskMetrics {
+	if len(t.MetricsHistory) == 0 {
+		return &TaskMetrics{}
+	}
+	metrics := t.MetricsHistory[len(t.MetricsHistory)-1].TaskMetrics
+	return &metrics
+}
+
+// 辅助方法：获取累计性能指标（所有时隙累加）
+func (t *Task) GetCumulativeMetrics() *TaskMetrics {
+	total := &TaskMetrics{}
+	for _, slot := range t.MetricsHistory {
+		total.TransferDelay += slot.TransferDelay
+		total.ComputeDelay += slot.ComputeDelay
+		total.TransferEnergy += slot.TransferEnergy
+		total.ComputeEnergy += slot.ComputeEnergy
+	}
+	total.TotalDelay = total.TransferDelay + total.ComputeDelay
+	total.TotalEnergy = total.TransferEnergy + total.ComputeEnergy
+	return total
+}
+
+// 辅助方法：获取当前队列数据
+func (t *Task) GetQueuedData() float64 {
+	if len(t.MetricsHistory) == 0 {
+		return 0
+	}
+	return t.MetricsHistory[len(t.MetricsHistory)-1].QueuedData
+}
+
+// 辅助方法：获取已处理数据
+func (t *Task) GetProcessedData() float64 {
+	if len(t.MetricsHistory) == 0 {
+		return 0
+	}
+	return t.MetricsHistory[len(t.MetricsHistory)-1].CumulativeProcessed
+}
+
+// 辅助方法：获取分配的资源
+func (t *Task) GetAllocResource() float64 {
+	if len(t.MetricsHistory) == 0 {
+		return 0
+	}
+	return t.MetricsHistory[len(t.MetricsHistory)-1].ResourceFraction
 }
 
 // TaskSnapshot 调度快照（纯计算临时数据，不持久化）
@@ -63,10 +107,8 @@ type TaskSnapshot struct {
 	Metrics             TaskMetrics `json:"metrics"` // 本轮性能指标
 }
 
-// ComputeMetrics 计算快照的性能指标
-// transferredData: 实际传输的数据量
-// queueData: 队列中的数据量
-func (snap *TaskSnapshot) ComputeMetrics(transferredData, queueData float64) TaskMetrics {
+// 计算快照的性能指标
+func (snap *TaskSnapshot) ComputeMetrics(transferredData, processedData float64) TaskMetrics {
 	metrics := TaskMetrics{}
 
 	// 传输延迟：传输数据通过各段路径的延迟之和
@@ -78,12 +120,14 @@ func (snap *TaskSnapshot) ComputeMetrics(transferredData, queueData float64) Tas
 		}
 	}
 
-	// 计算延迟：队列数据的计算时间
-	if snap.ResourceFraction > 0 {
-		metrics.ComputeDelay = queueData * constant.Rho / (snap.ResourceFraction * constant.C)
+	// 计算延迟：本时隙处理数据的计算时间
+	// Delay = ProcessedData(bits) × Rho(周期/bit) / (ResourceFraction × C(周期/秒)) = 秒
+	if snap.ResourceFraction > 0 && processedData > 0 {
+		metrics.ComputeDelay = processedData * constant.Rho / (snap.ResourceFraction * constant.C)
 	}
 
 	// 传输能耗：各段路径的能耗之和
+	// Energy = Power(W) × Time(s) = J
 	if transferredData > 0 && snap.TransferPath != nil {
 		for i, power := range snap.TransferPath.Powers {
 			if i < len(snap.TransferPath.Speeds) && snap.TransferPath.Speeds[i] > 0 {
@@ -94,6 +138,7 @@ func (snap *TaskSnapshot) ComputeMetrics(transferredData, queueData float64) Tas
 	}
 
 	// 计算能耗
+	// Energy = ResourceFraction × Kappa × C³ × Slot
 	metrics.ComputeEnergy = snap.ResourceFraction * constant.Kappa * constant.C * constant.C * constant.C * constant.Slot
 
 	// 总延迟和总能耗
@@ -113,7 +158,7 @@ func NewTask(base TaskBase) *Task {
 			CreatedAt: time.Now(),
 			Status:    TaskPending,
 		},
-		Metrics: &TaskMetrics{},
+		MetricsHistory: make([]SlotMetrics, 0),
 	}
 }
 

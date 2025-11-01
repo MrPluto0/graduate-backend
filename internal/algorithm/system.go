@@ -301,7 +301,7 @@ func (s *System) executeOneIteration() {
 	// 保存当前最优状态
 	s.CurrentState = bestState
 
-	// 更新任务状态（同步到Task.Metrics）
+	// 更新任务状态（同步到 Task.MetricsHistory）
 	s.TaskManager.syncFromState(bestState, activeTasks, s)
 
 	log.Printf("[时隙 %d]\n成本: %.2f, 任务数: %d", s.TimeSlot, bestCost, len(activeTasks))

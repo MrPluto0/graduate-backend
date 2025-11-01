@@ -26,17 +26,17 @@ func NewState(t uint, tasks []*define.Task, sys *System) *State {
 
 	for _, task := range tasks {
 		// 计算剩余待传输数据 = 总数据 - 已计算 - 队列中
-		pendingTransferData := task.DataSize - task.ProcessedData - task.QueuedData
+		pendingTransferData := task.DataSize - task.GetProcessedData() - task.GetQueuedData()
 		if pendingTransferData < 0 {
 			pendingTransferData = 0
 		}
 
 		snapshot := &define.TaskSnapshot{
 			ID:                  task.ID,
-			AssignedCommID:      task.AssignedCommID,      // 继承已有的分配
-			TransferPath:        task.TransferPath.Copy(), // 继承已有路径（深拷贝）
+			AssignedCommID:      task.AssignedCommID, // 继承已有的分配
+			TransferPath:        task.TransferPath,   // 继承已有路径
 			PendingTransferData: pendingTransferData,
-			CurrentQueue:        task.QueuedData, // 继承当前队列
+			CurrentQueue:        task.GetQueuedData(), // 继承当前队列
 		}
 
 		snapshots[task.ID] = snapshot
@@ -78,7 +78,7 @@ func (ts *State) assignTask(taskID string, assignedCommID uint, transferPath *de
 	// 保存分配的通信设备
 	snap.AssignedCommID = assignedCommID
 
-	// 复制 TransferPath 并填充第一段的用户速度
+	// 复制 TransferPath 并填充第一段的用户功率、路径
 	snap.TransferPath = transferPath.Copy()
 	if len(snap.TransferPath.Speeds) > 0 {
 		snap.TransferPath.Speeds[0] = userSpeed
@@ -139,10 +139,13 @@ func (ts *State) computeMetrics() {
 			continue
 		}
 
+		// 预测阶段：计算本时隙的处理数据量
+		processedData := snap.ResourceFraction * constant.C * constant.Slot / constant.Rho
+
 		// 使用 snapshot 自身的方法计算 metrics（预测阶段）
 		metrics := snap.ComputeMetrics(
-			snap.PendingTransferData, // 传输的数据量
-			snap.IntermediateQueue,   // 队列数据量
+			snap.PendingTransferData, // 假设瞬间传输的数据量 (bits)
+			processedData,            // 本时隙处理的数据量 (bits)
 		)
 
 		// 累加到状态总指标

@@ -51,6 +51,7 @@ func (g *Graph) constructGraph() {
 			}
 		}
 	}
+
 }
 
 // Floyd算法计算最短路径
@@ -81,11 +82,14 @@ func (g *Graph) calcByFloyd() {
 		g.ShortPaths[commI.ID] = make(map[uint]*define.TransferPath)
 		for j, commJ := range g.System.Comms {
 			indexPath := result.Paths[i][j]
-			idPath := make([]uint, len(indexPath))
 
+			var idPath []uint
 			if i == j {
-				indexPath = append(indexPath, i)
+				// 起点=终点：只有一个节点
+				idPath = []uint{g.System.Comms[i].ID}
 			} else {
+				// 起点≠终点：转换索引路径为ID路径
+				idPath = make([]uint, len(indexPath))
 				for k, idx := range indexPath {
 					idPath[k] = g.System.Comms[idx].ID
 				}

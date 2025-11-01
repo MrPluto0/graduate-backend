@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// 任务管理器
 type TaskManager struct {
 	System    *System
 	Tasks     map[string]*define.Task // 任务映射 taskID -> define.Task（快速查找）
@@ -119,38 +120,47 @@ func (tm *TaskManager) syncFromState(state *State, tasks []*define.Task, sys *Sy
 		}
 
 		if snap.AssignedCommID > 0 {
+			// 获取当前队列和已处理数据（单位：bits）
+			currentQueuedData := task.GetQueuedData()
+			currentProcessedData := task.GetProcessedData()
+
 			// 计算实际传输量（受时隙限制，使用等效速度）
-			var actualReceivedData float64
+			var actualReceivedData float64 // bits
 			if snap.TransferPath != nil {
 				equivalentSpeed := snap.TransferPath.CalcEquivalentSpeed()
 				if equivalentSpeed > 0 {
-					maxTransferInSlot := equivalentSpeed * constant.Slot
+					maxTransferInSlot := equivalentSpeed * constant.Slot // bits
 					actualReceivedData = math.Min(snap.PendingTransferData, maxTransferInSlot)
 				}
 			}
 
-			// 实际处理的数据量（计算完成的数据）
-			processedData := snap.ResourceFraction * constant.C * constant.Slot / constant.Rho
+			// 实际处理的数据量（计算完成的数据，单位：bits），不能超过队列中的数据量
+			maxProcessedData := snap.ResourceFraction * constant.C * constant.Slot / constant.Rho
+			processedData := math.Min(maxProcessedData, currentQueuedData+actualReceivedData)
 
-			// 更新任务的实际队列状态
-			task.QueuedData += actualReceivedData - processedData
-			if task.QueuedData < 0 {
-				task.QueuedData = 0
+			// 计算新的队列状态和计算累计已处理数据
+			newQueuedData := currentQueuedData + actualReceivedData - processedData
+			newProcessedData := currentProcessedData + processedData
+
+			// 记录本时隙的执行历史
+			slotMetrics := define.SlotMetrics{
+				TimeSlot:            state.TimeSlot,
+				TransferredData:     actualReceivedData,
+				ProcessedData:       processedData,
+				QueuedData:          newQueuedData,
+				CumulativeProcessed: newProcessedData,
+				ResourceFraction:    snap.ResourceFraction,
+				TaskMetrics: snap.ComputeMetrics(
+					actualReceivedData, // 实际传输的数据量 (bits)
+					processedData,      // 实际处理的数据量 (bits)
+				),
 			}
-
-			// 更新已处理数据（本时隙计算完成的数据）
-			task.ProcessedData += processedData
-
-			// 使用 snapshot 自身的方法重新计算实际的 Metrics（执行阶段）
-			*task.Metrics = snap.ComputeMetrics(
-				actualReceivedData,                 // 实际传输的数据量
-				task.QueuedData+actualReceivedData, // 实际队列数据量
-			)
+			task.MetricsHistory = append(task.MetricsHistory, slotMetrics)
 
 			// 同步其他字段
-			task.AllocResource = snap.ResourceFraction
 			task.AssignedCommID = snap.AssignedCommID
-			task.TransferPath = snap.TransferPath.Copy()
+			task.TransferPath = snap.TransferPath
+			task.TransferPath.Path = append([]uint{task.UserID}, task.TransferPath.Path...)
 
 			// 更新任务状态
 			if task.Status == define.TaskPending {
@@ -158,18 +168,15 @@ func (tm *TaskManager) syncFromState(state *State, tasks []*define.Task, sys *Sy
 				task.ScheduledTime = time.Now()
 			}
 
-			if task.QueuedData > 0 && task.Status == define.TaskQueued {
+			if newQueuedData > 0 && task.Status == define.TaskQueued {
 				task.Status = define.TaskComputing
 			}
 
 			// 检查是否完成
-			if task.QueuedData < 0.001 && task.ProcessedData >= task.DataSize-0.001 {
+			if newQueuedData < 0.001 && newProcessedData >= task.DataSize-0.001 {
 				task.Status = define.TaskCompleted
 				task.CompleteTime = time.Now()
-				task.ProcessedData = task.DataSize
-				task.QueuedData = 0
 			}
 		}
 	}
-
 }
