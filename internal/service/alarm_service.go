@@ -54,6 +54,15 @@ func (s *AlarmService) ListAlarms(current, size int, filters map[string]interfac
 	return s.alarmRepo.List(current, size, filters)
 }
 
+// GetAlarmList 获取告警列表（简化版，只按状态过滤）
+func (s *AlarmService) GetAlarmList(page, size int, status string) ([]models.Alarm, int64, error) {
+	filters := make(map[string]interface{})
+	if status != "" {
+		filters["status"] = status
+	}
+	return s.alarmRepo.List(page, size, filters)
+}
+
 // UpdateAlarm 更新告警信息
 func (s *AlarmService) UpdateAlarm(alarm *models.Alarm) error {
 	// 检查告警是否存在

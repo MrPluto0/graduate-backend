@@ -44,6 +44,7 @@ func migrateDB() {
 		&models.Device{},
 		&models.Node{},
 		&models.Link{},
+		&models.Alarm{},
 	)
 	if err != nil {
 		log.Fatalf("数据库迁移失败: %v", err)

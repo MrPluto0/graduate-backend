@@ -186,3 +186,82 @@ func (ts *State) objective() float64 {
 	ts.computeMetrics()
 	return ts.Cost
 }
+
+// 计算将任务分配给指定设备的增量成本（不修改state）
+// 这是优化的核心：不需要深拷贝整个State，只计算增量影响
+func (ts *State) computeAssignmentCost(
+	taskID string,
+	commID uint,
+	transferPath *define.TransferPath,
+	userSpeed float64,
+) float64 {
+	snap, ok := ts.Snapshots[taskID]
+	if !ok {
+		return constant.MaxCost
+	}
+
+	// 创建临时快照（只拷贝这一个任务的数据）
+	tempSnap := *snap
+	tempSnap.AssignedCommID = commID
+	tempSnap.TransferPath = transferPath.Copy()
+	if len(tempSnap.TransferPath.Speeds) > 0 {
+		tempSnap.TransferPath.Speeds[0] = userSpeed
+		tempSnap.TransferPath.Powers[0] = constant.P_u
+	}
+
+	// 第一步：计算这个任务的中间队列
+	// IntermediateQueue = CurrentQueue + PendingTransferData
+	tempSnap.IntermediateQueue = tempSnap.CurrentQueue + tempSnap.PendingTransferData
+
+	// 第二步：计算该设备上所有任务的总中间队列（包括新分配的任务）
+	commTotalQMid := 0.0
+	for _, s := range ts.Snapshots {
+		if s.AssignedCommID == commID {
+			commTotalQMid += s.IntermediateQueue
+		}
+	}
+	commTotalQMid += tempSnap.IntermediateQueue // 加上新任务
+
+	// 第三步：计算资源分配比例
+	if commTotalQMid > 0 {
+		tempSnap.ResourceFraction = tempSnap.IntermediateQueue / commTotalQMid
+	} else {
+		tempSnap.ResourceFraction = 0
+	}
+
+	// 第四步：计算下一时刻队列
+	receivedData := tempSnap.PendingTransferData
+	processedData := tempSnap.ResourceFraction * constant.C * constant.Slot / constant.Rho
+	tempSnap.NextQueue = tempSnap.CurrentQueue + receivedData - processedData
+	if tempSnap.NextQueue < 0 {
+		tempSnap.NextQueue = 0
+	}
+
+	// 第五步：计算性能指标
+	metrics := tempSnap.ComputeMetrics(receivedData, processedData)
+
+	// 第六步：计算该任务对系统成本的贡献
+	// 注意：这里只计算单个任务的贡献，不是整个系统的成本
+	transferDelay := metrics.TransferDelay
+	computeDelay := metrics.ComputeDelay
+	transferEnergy := metrics.TransferEnergy
+	computeEnergy := metrics.ComputeEnergy
+
+	totalDelay := transferDelay + computeDelay
+	totalEnergy := transferEnergy + computeEnergy
+
+	// 计算负载贡献（该任务的平均队列）
+	load := (tempSnap.NextQueue + tempSnap.CurrentQueue) / 2.0 / constant.Shrink
+
+	// Lyapunov 漂移项贡献
+	queueDiff := (tempSnap.NextQueue*tempSnap.NextQueue - tempSnap.CurrentQueue*tempSnap.CurrentQueue) / 2.0
+	drift := queueDiff / (constant.Shrink * constant.Shrink)
+
+	// 惩罚项贡献
+	penalty := constant.Alpha*totalDelay + constant.Gamma*totalEnergy + constant.Beta*load
+
+	// 总成本贡献
+	cost := drift + constant.V*penalty
+
+	return cost
+}

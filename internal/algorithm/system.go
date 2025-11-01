@@ -215,7 +215,7 @@ func (s *System) loadNodesFromDB() {
 	nodeRepo := repository.NewNodeRepository(db)
 	nodes, err := nodeRepo.List(nil)
 	if err != nil {
-		return
+		log.Fatalf("无法从数据库加载节点数据: %v", err)
 	}
 
 	for _, node := range nodes {
@@ -230,6 +230,21 @@ func (s *System) loadNodesFromDB() {
 			s.CommMap[commDevice.ID] = commDevice
 		}
 	}
+
+	// 检查是否成功加载了节点
+	if len(s.Users) == 0 && len(s.Comms) == 0 {
+		log.Fatalf("数据库中没有任何节点数据，请先添加用户设备和通信设备")
+	}
+
+	if len(s.Users) == 0 {
+		log.Printf("警告: 没有加载到任何用户设备")
+	}
+
+	if len(s.Comms) == 0 {
+		log.Fatalf("没有加载到任何通信设备，系统无法运行")
+	}
+
+	log.Printf("成功加载节点数据: %d个用户设备, %d个通信设备", len(s.Users), len(s.Comms))
 }
 
 // 运行算法轮询
@@ -270,17 +285,15 @@ func (s *System) executeOneIteration() {
 
 	s.TimeSlot++
 
-	// 创建任务维度的状态
-	state := NewState(s.TimeSlot, activeTasks, s)
-
-	// 多次迭代寻找最优解
+	// 多次迭代寻找最优解（优化版：无深拷贝）
 	var bestState *State
 	bestCost := math.Inf(1)
 	maxIter := min(constant.Iters, len(activeTasks))
 
 	for iter := 0; iter < maxIter; iter++ {
-		tempState := state.copy()
-		newState := s.Graph.schedule(tempState, activeTasks)
+		// 关键优化：每次迭代重新创建state（轻量级），而不是深拷贝
+		iterState := NewState(s.TimeSlot, activeTasks, s)
+		newState := s.Graph.schedule(iterState, activeTasks)
 		cost := newState.Cost
 
 		prevCost := bestCost

@@ -122,7 +122,7 @@ func (g *Graph) calcByFloyd() {
 	}
 }
 
-// 任务维度调度器：为每个任务选择最优计算节点
+// 任务维度调度器：为每个任务选择最优计算节点（优化版：无深拷贝）
 func (g *Graph) schedule(state *State, tasks []*define.Task) *State {
 	// 创建任务切片的副本并打乱顺序
 	shuffledTasks := make([]*define.Task, len(tasks))
@@ -131,10 +131,9 @@ func (g *Graph) schedule(state *State, tasks []*define.Task) *State {
 		shuffledTasks[i], shuffledTasks[j] = shuffledTasks[j], shuffledTasks[i]
 	})
 
-	nextState := state.copy()
-
+	// 重要：不再拷贝state，直接在原state上操作
 	for _, task := range shuffledTasks {
-		snap, ok := nextState.Snapshots[task.ID]
+		snap, ok := state.Snapshots[task.ID]
 		if !ok || snap.PendingTransferData == 0 {
 			continue
 		}
@@ -157,9 +156,11 @@ func (g *Graph) schedule(state *State, tasks []*define.Task) *State {
 		}
 
 		bestCost := math.Inf(1)
-		var bestState *State
+		var bestCommID uint
+		var bestPath *define.TransferPath
 
 		// 遍历所有可能的计算节点,选择成本最低的方案
+		// 关键优化：只计算成本，不拷贝state
 		for _, endComm := range g.System.Comms {
 			endCommID := endComm.ID
 
@@ -169,23 +170,24 @@ func (g *Graph) schedule(state *State, tasks []*define.Task) *State {
 				continue
 			}
 
-			tempState := nextState.copy()
-			tempState.assignTask(task.ID, endCommID, transferPath, user.Speed)
-			cost := tempState.objective()
+			// 使用增量成本计算函数（不修改state）
+			cost := state.computeAssignmentCost(task.ID, endCommID, transferPath, user.Speed)
 
 			if cost < bestCost {
 				bestCost = cost
-				bestState = tempState
+				bestCommID = endCommID
+				bestPath = transferPath
 			}
 		}
 
-		if bestCost < math.Inf(1) && bestState != nil {
-			nextState = bestState
+		// 找到最优方案后，只执行一次真实分配
+		if bestCost < math.Inf(1) && bestPath != nil {
+			state.assignTask(task.ID, bestCommID, bestPath, user.Speed)
 		}
 	}
 
 	// 最终计算一次完整的指标
-	nextState.objective()
+	state.objective()
 
-	return nextState
+	return state
 }

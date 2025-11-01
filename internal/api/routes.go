@@ -20,18 +20,21 @@ func SetupRoutes(router *gin.Engine) {
 	deviceRepo := repository.NewDeviceRepository(db)
 	nodeRepo := repository.NewNodeRepository(db)
 	linkRepo := repository.NewLinkRepository(db)
+	alarmRepo := repository.NewAlarmRepository(db)
 
 	// 初始化服务层
 	userService := service.NewUserService(userRepo)
 	deviceService := service.NewDeviceService(deviceRepo, nodeRepo, linkRepo)
 	networkService := service.NewNetworkService(nodeRepo, linkRepo)
+	monitorService := service.NewMonitorService()
+	alarmService := service.NewAlarmService(alarmRepo)
 
 	// 初始化处理器
 	authHandler := handlers.NewAuthHandler(userService)
 	userHandler := handlers.NewUserHandler(userService)
 	deviceHandler := handlers.NewDeviceHandler(deviceService)
 	networkHandler := handlers.NewNetworkHandler(networkService)
-	overviewHandler := handlers.NewOverviewHandler(deviceService, networkService, userService)
+	overviewHandler := handlers.NewOverviewHandler(deviceService, networkService, userService, monitorService, alarmService)
 	healthHandler := handlers.NewHealthHandler()
 	algorithmHandler := handlers.NewAlgorithmHandler()
 
@@ -59,6 +62,10 @@ func SetupRoutes(router *gin.Engine) {
 			algorithm.GET("/tasks/:id", algorithmHandler.GetTaskByID)
 			algorithm.DELETE("/tasks/:id", algorithmHandler.DeleteTask)
 		}
+
+		// 系统监控和告警（公开访问，方便Dashboard）
+		public.GET("/system/metrics", overviewHandler.GetSystemMetrics)
+		public.GET("/alarms", overviewHandler.GetAlarms)
 	}
 
 	// 需要认证的路由组
