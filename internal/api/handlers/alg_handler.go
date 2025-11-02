@@ -160,6 +160,51 @@ func (h *AlgorithmHandler) GetTaskByID(c *gin.Context) {
 	utils.Success(c, task)
 }
 
+// SubmitTask godoc
+// @Summary 提交单个任务
+// @Description 提交单个计算任务到调度系统
+// @Tags 算法管理
+// @Accept json
+// @Produce json
+// @Security ApiKeyAuth
+// @Param request body define.TaskBase true "任务信息"
+// @Success 200 {object} utils.Response{data=define.Task}
+// @Failure 400 {object} utils.Response
+// @Router /algorithm/tasks [post]
+func (h *AlgorithmHandler) SubmitTask(c *gin.Context) {
+	var request define.TaskBase
+	if err := c.ShouldBindJSON(&request); err != nil {
+		utils.Error(c, utils.VALIDATION_ERROR, err.Error())
+		return
+	}
+
+	// 提交单个任务（根据是否有优先级选择对应方法）
+	var task *define.Task
+	var err error
+
+	if request.Priority != 0 {
+		task, err = h.system.SubmitTaskWithPriority(
+			request.UserID,
+			request.DataSize,
+			request.Type,
+			request.Priority,
+		)
+	} else {
+		task, err = h.system.SubmitTask(
+			request.UserID,
+			request.DataSize,
+			request.Type,
+		)
+	}
+
+	if err != nil {
+		utils.Error(c, utils.ERROR, fmt.Sprintf("任务提交失败: %v", err))
+		return
+	}
+
+	utils.SuccessWithMessage(c, task, "任务提交成功")
+}
+
 // DeleteTask godoc
 // @Summary 删除任务
 // @Description 根据任务ID删除任务
