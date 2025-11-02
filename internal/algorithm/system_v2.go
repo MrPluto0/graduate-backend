@@ -21,7 +21,6 @@ type SystemV2 struct {
 	LinkMap map[[2]uint]*models.Link // [源ID, 目标ID] -> Link
 
 	// 核心组件
-	Graph             *Graph
 	TaskManager       *TaskManagerV2
 	AssignmentManager *AssignmentManager
 	Scheduler         *Scheduler
@@ -51,8 +50,6 @@ func NewSystemV2() *SystemV2 {
 	// 初始化组件
 	sys.TaskManager = NewTaskManagerV2()
 	sys.AssignmentManager = NewAssignmentManager()
-	// Graph仍然使用旧System结构,暂时不初始化(简化版scheduler不需要Floyd)
-	// sys.Graph = NewGraph(sys)
 	sys.Scheduler = NewScheduler(sys, sys.AssignmentManager)
 
 	sys.IsInitialized = true

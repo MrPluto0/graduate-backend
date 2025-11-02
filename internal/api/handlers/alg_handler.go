@@ -11,12 +11,12 @@ import (
 )
 
 type AlgorithmHandler struct {
-	system *algorithm.System
+	system *algorithm.SystemAdapter
 }
 
 func NewAlgorithmHandler() *AlgorithmHandler {
 	return &AlgorithmHandler{
-		system: algorithm.GetSystemInstance(),
+		system: algorithm.GetAdaptedSystem(),
 	}
 }
 
@@ -151,8 +151,8 @@ func (h *AlgorithmHandler) GetTaskByID(c *gin.Context) {
 		return
 	}
 
-	task, exists := h.system.GetTaskByID(taskID)
-	if !exists {
+	task := h.system.GetTaskByID(taskID)
+	if task == nil {
 		utils.Error(c, utils.NOT_FOUND, "任务不存在")
 		return
 	}
@@ -178,7 +178,8 @@ func (h *AlgorithmHandler) DeleteTask(c *gin.Context) {
 		return
 	}
 
-	if !h.system.DeleteTask(taskID) {
+	err := h.system.DeleteTask(taskID)
+	if err != nil {
 		utils.Error(c, utils.NOT_FOUND, "任务不存在")
 		return
 	}

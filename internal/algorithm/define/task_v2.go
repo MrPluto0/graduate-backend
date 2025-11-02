@@ -38,21 +38,5 @@ func NewTaskV2(userID uint, dataSize float64, taskType string) *TaskV2 {
 
 // StateMachine 获取任务的状态机
 func (t *TaskV2) StateMachine() *TaskStateMachine {
-	// 注意: TaskStateMachine需要适配,因为它现在引用的是Task而不是TaskV2
-	// 暂时使用类型转换的hack,后续会完全替换
-	oldTask := &Task{
-		TaskBase: TaskBase{
-			ID:        t.ID,
-			Name:      t.Name,
-			Type:      t.Type,
-			UserID:    t.UserID,
-			DataSize:  t.DataSize,
-			Priority:  t.Priority,
-			Status:    t.Status,
-			CreatedAt: t.CreatedAt,
-		},
-		ScheduledTime: t.ScheduledTime,
-		CompleteTime:  t.CompleteTime,
-	}
-	return NewTaskStateMachine(oldTask)
+	return NewTaskStateMachine(t)
 }

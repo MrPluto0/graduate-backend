@@ -7,11 +7,11 @@ import (
 
 // TaskStateMachine 任务状态机
 type TaskStateMachine struct {
-	task *Task
+	task *TaskV2
 }
 
 // NewTaskStateMachine 创建任务状态机
-func NewTaskStateMachine(task *Task) *TaskStateMachine {
+func NewTaskStateMachine(task *TaskV2) *TaskStateMachine {
 	return &TaskStateMachine{task: task}
 }
 

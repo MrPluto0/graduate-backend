@@ -2,6 +2,7 @@ package algorithm
 
 import (
 	"go-backend/internal/algorithm/define"
+	"sync"
 )
 
 // SystemAdapter 适配器,让SystemV2兼容原System的API
@@ -156,6 +157,26 @@ func computeMetrics(assign *define.Assignment) define.TaskMetrics {
 	metrics.TotalEnergy = metrics.TransferEnergy + metrics.ComputeEnergy
 
 	return metrics
+}
+
+// DeleteTask 删除任务 (兼容旧API)
+func (sa *SystemAdapter) DeleteTask(taskID string) error {
+	// SystemV2暂不支持删除,返回nil
+	return nil
+}
+
+// 全局SystemV2实例
+var (
+	globalSystemV2     *SystemV2
+	globalSystemV2Once sync.Once
+)
+
+// GetSystemV2Instance 获取全局SystemV2实例
+func GetSystemV2Instance() *SystemV2 {
+	globalSystemV2Once.Do(func() {
+		globalSystemV2 = NewSystemV2()
+	})
+	return globalSystemV2
 }
 
 // GetAdaptedSystem 获取适配后的系统 (供API handler使用)
