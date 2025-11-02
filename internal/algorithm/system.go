@@ -139,71 +139,92 @@ func (s *System) runSchedulingLoop() {
 
 // executeOneSlot 执行一个时隙的调度
 func (s *System) executeOneSlot() {
+	// 细化锁粒度: 只在必要时持有锁
+
+	// 1. 原子递增时隙
 	s.mutex.Lock()
-	defer s.mutex.Unlock()
-
 	s.TimeSlot++
+	currentSlot := s.TimeSlot
+	s.mutex.Unlock()
 
-	// 1. 获取活跃任务
+	// 2. 获取活跃任务（TaskManager有自己的锁）
 	tasks := s.TaskManager.GetActiveTasks()
 	if len(tasks) == 0 {
 		log.Println("所有任务已完成，停止调度")
+		s.mutex.Lock()
 		s.IsRunning = false
+		s.mutex.Unlock()
 		return
 	}
 
-	// 2. 创建调度分配
-	assignments := s.Scheduler.Schedule(s.TimeSlot, tasks)
+	// 3. 创建调度分配（调度计算不需要持有System锁）
+	assignments := s.Scheduler.Schedule(currentSlot, tasks)
 
-	// 3. 执行分配,计算传输和处理量
+	// 4. 执行分配,计算传输和处理量（不需要System锁）
 	taskMap := make(map[string]*define.Task)
 	for _, t := range tasks {
 		taskMap[t.ID] = t
 	}
 	s.Scheduler.ExecuteAssignments(assignments, taskMap)
 
-	// 4. 更新任务状态
+	// 5. 更新任务状态（TaskManager内部有锁）
 	s.updateTaskStates(assignments)
 
-	// 5. 保存分配历史
+	// 6. 保存分配历史（AssignmentManager内部有锁）
 	for _, assign := range assignments {
 		s.AssignmentManager.AddAssignment(assign)
 	}
 
-	log.Printf("时隙 %d: 调度了 %d 个任务", s.TimeSlot, len(assignments))
+	log.Printf("时隙 %d: 调度了 %d 个任务", currentSlot, len(assignments))
 }
 
 // updateTaskStates 根据分配结果更新任务状态
 func (s *System) updateTaskStates(assignments []*define.Assignment) {
+	// 批量更新任务状态（使用TaskManager的锁保护）
 	for _, assign := range assignments {
+		// 先读取任务信息（带读锁）
 		task := s.TaskManager.GetTask(assign.TaskID)
 		if task == nil {
 			continue
 		}
 
-		sm := task.StateMachine()
+		currentStatus := task.Status
+		dataSize := task.DataSize
 
-		// Pending → Queued (首次分配)
-		if sm.IsPending() {
-			if err := sm.ToQueued(); err != nil {
-				log.Printf("状态转换失败 (Pending→Queued): %v", err)
+		// 确定目标状态
+		var targetStatus define.TaskStatus
+		var shouldUpdate bool
+
+		switch currentStatus {
+		case define.TaskPending:
+			// Pending → Queued (首次分配)
+			targetStatus = define.TaskQueued
+			shouldUpdate = true
+
+		case define.TaskQueued:
+			// Queued → Computing (开始处理数据)
+			if assign.ProcessedData > 0 {
+				targetStatus = define.TaskComputing
+				shouldUpdate = true
 			}
-			continue
+			// Queued → Completed (数据处理完成,未经Computing状态)
+			if assign.CumulativeProcessed >= dataSize-0.001 {
+				targetStatus = define.TaskCompleted
+				shouldUpdate = true
+			}
+
+		case define.TaskComputing:
+			// Computing → Completed (数据处理完成)
+			if assign.CumulativeProcessed >= dataSize-0.001 {
+				targetStatus = define.TaskCompleted
+				shouldUpdate = true
+			}
 		}
 
-		// Queued → Computing (开始处理数据)
-		if sm.IsQueued() && assign.ProcessedData > 0 {
-			if err := sm.ToComputing(); err != nil {
-				log.Printf("状态转换失败 (Queued→Computing): %v", err)
-			}
-		}
-
-		// Computing → Completed (数据处理完成)
-		if sm.IsComputing() || sm.IsQueued() {
-			if assign.CumulativeProcessed >= task.DataSize-0.001 {
-				if err := sm.ToCompleted(); err != nil {
-					log.Printf("状态转换失败 (→Completed): %v", err)
-				}
+		// 执行状态转换（使用TaskManager的写锁保护）
+		if shouldUpdate {
+			if err := s.TaskManager.UpdateTaskStatus(assign.TaskID, targetStatus); err != nil {
+				log.Printf("状态转换失败 (%s→%d): %v", assign.TaskID, targetStatus, err)
 			}
 		}
 	}
@@ -223,11 +244,24 @@ func (s *System) Stop() {
 // GetSystemInfo 获取系统信息
 func (s *System) GetSystemInfo() *define.SystemInfo {
 	s.mutex.RLock()
-	defer s.mutex.RUnlock()
+	userCount := len(s.Users)
+	commCount := len(s.Comms)
+	isRunning := s.IsRunning
+	isInitialized := s.IsInitialized
+	timeSlot := s.TimeSlot
+	s.mutex.RUnlock()
 
-	// 收集传输路径
+	// 收集传输路径 - 使用TaskManager的锁保护
 	transferPaths := make(map[string][]uint)
+	s.TaskManager.mutex.RLock()
+	taskIDs := make([]string, 0, len(s.TaskManager.Tasks))
 	for taskID := range s.TaskManager.Tasks {
+		taskIDs = append(taskIDs, taskID)
+	}
+	s.TaskManager.mutex.RUnlock()
+
+	// 获取每个任务的最后分配（AssignmentManager有自己的锁）
+	for _, taskID := range taskIDs {
 		lastAssign := s.AssignmentManager.GetLastAssignment(taskID)
 		if lastAssign != nil && len(lastAssign.Path) > 0 {
 			transferPaths[taskID] = lastAssign.Path
@@ -235,11 +269,11 @@ func (s *System) GetSystemInfo() *define.SystemInfo {
 	}
 
 	return &define.SystemInfo{
-		UserCount:      len(s.Users),
-		CommCount:      len(s.Comms),
-		IsRunning:      s.IsRunning,
-		IsInitialized:  s.IsInitialized,
-		TimeSlot:       s.TimeSlot,
+		UserCount:      userCount,
+		CommCount:      commCount,
+		IsRunning:      isRunning,
+		IsInitialized:  isInitialized,
+		TimeSlot:       timeSlot,
 		TransferPath:   transferPaths,
 		TaskCount:      s.TaskManager.Count(),
 		ActiveTasks:    len(s.TaskManager.GetActiveTasks()),
