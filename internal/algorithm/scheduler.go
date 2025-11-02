@@ -134,16 +134,44 @@ func (s *Scheduler) computeTransferCost(assign *define.Assignment, dataSize floa
 	return cost
 }
 
-// allocateResources 为所有分配计算资源比例 (基于队列长度)
+// allocateResources 为所有分配计算资源比例 (基于优先级和队列长度,带饥饿保护)
 func (s *Scheduler) allocateResources(assignments []*define.Assignment) {
-	// 计算总队列长度
-	totalQueue := 0.0
-	for _, assign := range assignments {
-		totalQueue += assign.QueueData
+	if len(assignments) == 0 {
+		return
 	}
 
-	if totalQueue < 0.001 {
-		// 没有队列,平均分配
+	// 获取每个任务的优先级权重
+	taskWeights := make(map[string]float64)
+	totalWeight := 0.0
+
+	for _, assign := range assignments {
+		task := s.AssignmentManager.GetTask(assign.TaskID, s.System.TaskManager)
+		if task == nil {
+			continue
+		}
+
+		// 优先级因子: priority/10 + 1 (priority=0→1, priority=10→2, priority=20→3)
+		priorityFactor := float64(task.Priority)/10.0 + 1.0
+
+		// 饥饿提升: 如果任务等待过久,提升优先级
+		if task.IsStarving() {
+			waitTime := task.GetWaitTime().Seconds()
+			starvationBoost := 1.0 + (waitTime / 10.0) // 每10秒增加1倍权重
+			priorityFactor *= starvationBoost
+			// log.Printf("⚠️  任务 %s 饥饿提升: %.2fx (等待%.1fs)", task.ID, starvationBoost, waitTime)
+		}
+
+		// 队列因子: 队列越长，需要更多资源
+		queueFactor := assign.QueueData + 1.0 // +1避免除零
+
+		weight := priorityFactor * queueFactor
+		taskWeights[assign.TaskID] = weight
+		totalWeight += weight
+	}
+
+	// 按权重分配资源
+	if totalWeight < 0.001 {
+		// 总权重太小,平均分配
 		fraction := 1.0 / float64(len(assignments))
 		for _, assign := range assignments {
 			assign.ResourceFraction = fraction
@@ -151,9 +179,10 @@ func (s *Scheduler) allocateResources(assignments []*define.Assignment) {
 		return
 	}
 
-	// 按队列比例分配资源
+	// 按权重比例分配
 	for _, assign := range assignments {
-		assign.ResourceFraction = assign.QueueData / totalQueue
+		weight := taskWeights[assign.TaskID]
+		assign.ResourceFraction = weight / totalWeight
 	}
 }
 

@@ -156,6 +156,46 @@ func (s *System) SubmitTask(userID uint, dataSize float64, taskType string) (*de
 	return task, nil
 }
 
+// SubmitTaskWithPriority 提交带优先级的任务
+func (s *System) SubmitTaskWithPriority(userID uint, dataSize float64, taskType string, priority int) (*define.Task, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// 检查系统是否已初始化
+	if !s.IsInitialized {
+		log.Printf("❌ 系统未初始化,无法提交任务")
+		return nil, fmt.Errorf("系统未初始化")
+	}
+
+	// 验证用户
+	if _, exists := s.UserMap[userID]; !exists {
+		log.Printf("❌ 提交任务失败: 用户 %d 不存在", userID)
+		return nil, fmt.Errorf("用户不存在: %d", userID)
+	}
+
+	// 验证数据大小
+	if dataSize <= 0 {
+		log.Printf("❌ 提交任务失败: 无效的数据大小 %.2f", dataSize)
+		return nil, fmt.Errorf("无效的数据大小: %.2f", dataSize)
+	}
+
+	// 创建带优先级的任务
+	task := define.NewTaskWithPriority(userID, dataSize, taskType, priority)
+	s.TaskManager.AddTask(task)
+
+	log.Printf("✓ 任务 %s 已提交 (用户:%d, 数据:%.2fMB, 类型:%s, 优先级:%d)",
+		task.ID, userID, dataSize, taskType, priority)
+
+	// 启动调度循环
+	if !s.IsRunning {
+		s.IsRunning = true
+		go s.runSchedulingLoop()
+		log.Println("✓ 调度循环已启动")
+	}
+
+	return task, nil
+}
+
 // runSchedulingLoop 调度循环 (简化的单一职责流程)
 func (s *System) runSchedulingLoop() {
 	ticker := time.NewTicker(1 * time.Second) // constant.Slot是float64,这里用1秒

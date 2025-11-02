@@ -86,3 +86,8 @@ func (am *AssignmentManager) Clear() {
 	defer am.mutex.Unlock()
 	am.History = make(map[string][]*define.Assignment)
 }
+
+// GetTask 从TaskManager获取任务 (辅助方法)
+func (am *AssignmentManager) GetTask(taskID string, tm *TaskManager) *define.Task {
+	return tm.GetTask(taskID)
+}
