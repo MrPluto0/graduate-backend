@@ -3,10 +3,12 @@ package algorithm
 import (
 	"fmt"
 	"go-backend/internal/algorithm/define"
+	"go-backend/internal/algorithm/utils"
 	"go-backend/internal/models"
 	"go-backend/internal/repository"
 	"go-backend/pkg/database"
 	"log"
+	"math"
 	"sync"
 	"time"
 )
@@ -19,6 +21,11 @@ type System struct {
 	UserMap map[uint]*define.UserDevice
 	CommMap map[uint]*define.CommDevice
 	LinkMap map[[2]uint]*models.Link // [源ID, 目标ID] -> Link
+
+	// 网络拓扑
+	NodeIDToIndex map[uint]int        // NodeID -> Floyd矩阵索引
+	IndexToNodeID map[int]uint        // Floyd矩阵索引 -> NodeID
+	FloydResult   *utils.FloydResult  // Floyd最短路径结果
 
 	// 核心组件
 	TaskManager       *TaskManager
@@ -36,18 +43,27 @@ type System struct {
 // NewSystem 创建新系统实例 (替代单例模式)
 func NewSystem() *System {
 	sys := &System{
-		Users:    make([]*define.UserDevice, 0),
-		Comms:    make([]*define.CommDevice, 0),
-		UserMap:  make(map[uint]*define.UserDevice),
-		CommMap:  make(map[uint]*define.CommDevice),
-		LinkMap:  make(map[[2]uint]*models.Link),
-		StopChan: make(chan bool, 1),
+		Users:         make([]*define.UserDevice, 0),
+		Comms:         make([]*define.CommDevice, 0),
+		UserMap:       make(map[uint]*define.UserDevice),
+		CommMap:       make(map[uint]*define.CommDevice),
+		LinkMap:       make(map[[2]uint]*models.Link),
+		NodeIDToIndex: make(map[uint]int),
+		IndexToNodeID: make(map[int]uint),
+		StopChan:      make(chan bool, 1),
 	}
 
 	// 加载设备数据
 	if err := sys.loadNodesFromDB(); err != nil {
 		log.Printf("⚠️  系统初始化失败: %v", err)
 		// 不返回nil,而是返回部分初始化的系统(允许降级运行)
+		sys.IsInitialized = false
+		return sys
+	}
+
+	// 构建Floyd最短路径
+	if err := sys.buildFloydPaths(); err != nil {
+		log.Printf("⚠️  Floyd路径计算失败: %v", err)
 		sys.IsInitialized = false
 		return sys
 	}
@@ -105,14 +121,80 @@ func (s *System) loadNodesFromDB() error {
 		// 填充用户设备的上行速度 (基站→用户的下行链路对应用户→基站的上行)
 		if user, exists := s.UserMap[link.TargetID]; exists {
 			if _, isComm := s.CommMap[link.SourceID]; isComm {
-				// 这是基站到用户的链路,用户上行速度通常与下行相同或略低
-				// TODO: 从link.Properties中解析bandwidth
-				user.Speed = 1.0 // Mbps (默认上行速率)
+				// 这是基站到用户的链路,解析带宽
+				uplink := 1.0 // 默认上行速率 (Mbps)
+				if bw, ok := link.Properties["bandwidth"].(float64); ok && bw > 0 {
+					uplink = bw * 0.8 // 上行速率通常为下行的80%
+				}
+				user.Speed = uplink
 			}
 		}
 	}
 
 	log.Printf("✓ 成功加载节点数据: %d个用户设备, %d个通信设备", len(s.Users), len(s.Comms))
+	return nil
+}
+
+// buildFloydPaths 构建Floyd最短路径矩阵
+func (s *System) buildFloydPaths() error {
+	// 收集所有节点ID
+	allNodeIDs := make([]uint, 0, len(s.UserMap)+len(s.CommMap))
+	for id := range s.UserMap {
+		allNodeIDs = append(allNodeIDs, id)
+	}
+	for id := range s.CommMap {
+		allNodeIDs = append(allNodeIDs, id)
+	}
+
+	if len(allNodeIDs) == 0 {
+		return fmt.Errorf("没有可用节点")
+	}
+
+	// 构建ID映射 (NodeID <-> Matrix Index)
+	for idx, nodeID := range allNodeIDs {
+		s.NodeIDToIndex[nodeID] = idx
+		s.IndexToNodeID[idx] = nodeID
+	}
+
+	n := len(allNodeIDs)
+	// 初始化邻接矩阵 (无穷大表示不连通)
+	adjMatrix := make([][]float64, n)
+	for i := range adjMatrix {
+		adjMatrix[i] = make([]float64, n)
+		for j := range adjMatrix[i] {
+			if i == j {
+				adjMatrix[i][j] = 0 // 自身到自身距离为0
+			} else {
+				adjMatrix[i][j] = math.Inf(1) // 初始为无穷大
+			}
+		}
+	}
+
+	// 填充链路权重 (使用传输延迟作为权重)
+	for key, link := range s.LinkMap {
+		srcID, dstID := key[0], key[1]
+		srcIdx, srcOk := s.NodeIDToIndex[srcID]
+		dstIdx, dstOk := s.NodeIDToIndex[dstID]
+
+		if !srcOk || !dstOk {
+			continue
+		}
+
+		// 使用传输延迟作为边权重 (TODO: 从link.Properties解析)
+		// 简化假设: 固定延迟1.0
+		delay := 1.0
+		if bandwidth, ok := link.Properties["bandwidth"].(float64); ok && bandwidth > 0 {
+			// 延迟 ≈ 1/带宽 (简化模型)
+			delay = 1.0 / bandwidth
+		}
+
+		adjMatrix[srcIdx][dstIdx] = delay
+	}
+
+	// 运行Floyd算法
+	s.FloydResult = utils.Floyd(adjMatrix)
+
+	log.Printf("✓ Floyd最短路径计算完成 (%d个节点)", n)
 	return nil
 }
 

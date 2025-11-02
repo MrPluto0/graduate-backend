@@ -123,15 +123,41 @@ func (s *Scheduler) findBestAssignment(timeSlot uint, task *define.Task) *define
 	return bestAssign
 }
 
-// computeTransferCost 计算传输cost (传输延迟)
+// computeTransferCost 计算传输cost (综合延迟、能耗、队列)
 func (s *Scheduler) computeTransferCost(assign *define.Assignment, dataSize float64) float64 {
-	cost := 0.0
+	// 1. 传输延迟 (秒)
+	transmissionDelay := 0.0
 	for _, speed := range assign.Speeds {
 		if speed > 0 {
-			cost += dataSize / speed
+			transmissionDelay += dataSize / speed
 		}
 	}
-	return cost
+
+	// 2. 能耗成本 (焦耳 = 功率 × 时间)
+	energyCost := 0.0
+	for i, power := range assign.Powers {
+		if i < len(assign.Speeds) && assign.Speeds[i] > 0 {
+			// 每段链路的传输时间
+			segmentTime := dataSize / assign.Speeds[i]
+			energyCost += power * segmentTime
+		}
+	}
+
+	// 3. 队列延迟 (comm设备的当前负载)
+	queueDelay := 0.0
+	if lastAssign := s.AssignmentManager.GetLastAssignment(assign.TaskID); lastAssign != nil {
+		// 如果设备上已有任务队列,增加等待成本
+		queueDelay = lastAssign.QueueData
+	}
+
+	// 加权组合: cost = α×delay + β×energy + γ×queue
+	// 权重选择: 延迟优先,能耗其次,队列最后
+	alpha := 1.0    // 延迟权重
+	beta := 0.1     // 能耗权重
+	gamma := 0.05   // 队列权重
+
+	totalCost := alpha*transmissionDelay + beta*energyCost + gamma*queueDelay
+	return totalCost
 }
 
 // allocateResources 为所有分配计算资源比例 (基于优先级和队列长度,带饥饿保护)
@@ -232,14 +258,36 @@ func (s *Scheduler) getPathSpeedsAndPowers(path []uint, userSpeed float64) ([]fl
 	powers := make([]float64, len(path)-1)
 
 	for i := 0; i < len(path)-1; i++ {
+		srcID := path[i]
+		dstID := path[i+1]
+
 		if i == 0 {
-			// 第一段: 用户 → 第一个设备
+			// 第一段: 用户 → 设备 (使用用户上行速率)
 			speeds[i] = userSpeed
 			powers[i] = 0.5 // 默认功率
 		} else {
-			// 后续段: 设备 → 设备 (使用固定值简化)
-			speeds[i] = 10.0 // Mbps
-			powers[i] = 1.0  // W
+			// 后续段: 设备 → 设备 (从Link.Properties解析)
+			link, exists := s.System.LinkMap[[2]uint{srcID, dstID}]
+			if !exists {
+				// 链路不存在,使用默认值
+				speeds[i] = 10.0 // Mbps
+				powers[i] = 1.0  // W
+				continue
+			}
+
+			// 解析带宽 (bandwidth in Mbps)
+			bandwidth := 10.0 // 默认值
+			if bw, ok := link.Properties["bandwidth"].(float64); ok && bw > 0 {
+				bandwidth = bw
+			}
+			speeds[i] = bandwidth
+
+			// 解析功率 (power in W)
+			power := 1.0 // 默认值
+			if pw, ok := link.Properties["power"].(float64); ok && pw > 0 {
+				power = pw
+			}
+			powers[i] = power
 		}
 	}
 
@@ -248,6 +296,35 @@ func (s *Scheduler) getPathSpeedsAndPowers(path []uint, userSpeed float64) ([]fl
 
 // getPath 获取从用户到通信设备的最短路径
 func (s *Scheduler) getPath(userID, commID uint) []uint {
-	// 简化版本: 直接连接 (TODO: 集成Floyd算法)
-	return []uint{userID, commID}
+	// 使用Floyd算法的最短路径结果
+	if s.System.FloydResult == nil {
+		// 降级: 返回直连路径
+		log.Printf("⚠️  Floyd结果未初始化,使用直连路径")
+		return []uint{userID, commID}
+	}
+
+	// 获取节点在Floyd矩阵中的索引
+	srcIdx, srcOk := s.System.NodeIDToIndex[userID]
+	dstIdx, dstOk := s.System.NodeIDToIndex[commID]
+
+	if !srcOk || !dstOk {
+		log.Printf("⚠️  节点ID映射失败 (user:%d, comm:%d)", userID, commID)
+		return []uint{userID, commID}
+	}
+
+	// 获取Floyd路径 (索引数组)
+	pathIndices := s.System.FloydResult.Paths[srcIdx][dstIdx]
+	if len(pathIndices) == 0 {
+		// 路径不可达
+		log.Printf("⚠️  路径不可达 (user:%d -> comm:%d)", userID, commID)
+		return nil
+	}
+
+	// 转换索引为节点ID
+	path := make([]uint, len(pathIndices))
+	for i, idx := range pathIndices {
+		path[i] = s.System.IndexToNodeID[idx]
+	}
+
+	return path
 }
