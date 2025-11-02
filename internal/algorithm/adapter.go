@@ -5,29 +5,29 @@ import (
 	"sync"
 )
 
-// SystemAdapter 适配器,让SystemV2兼容原System的API
+// SystemAdapter 适配器,让System兼容原System的API
 type SystemAdapter struct {
-	*SystemV2
+	*System
 }
 
 // NewSystemAdapter 创建适配器
-func NewSystemAdapter(sysV2 *SystemV2) *SystemAdapter {
-	return &SystemAdapter{SystemV2: sysV2}
+func NewSystemAdapter(sys *System) *SystemAdapter {
+	return &SystemAdapter{System: sys}
 }
 
 // SubmitBatchTasks 适配批量提交任务 (兼容旧API)
-func (sa *SystemAdapter) SubmitBatchTasks(requests []define.TaskBase) ([]*define.Task, error) {
-	tasks := make([]*define.Task, 0, len(requests))
+func (sa *SystemAdapter) SubmitBatchTasks(requests []define.TaskBase) ([]*define.TaskWithMetrics, error) {
+	tasks := make([]*define.TaskWithMetrics, 0, len(requests))
 
 	for _, req := range requests {
-		taskV2, err := sa.SystemV2.SubmitTask(req.UserID, req.DataSize, req.Type)
+		task, err := sa.System.SubmitTask(req.UserID, req.DataSize, req.Type)
 		if err != nil {
 			return nil, err
 		}
 
-		// 转换TaskV2为Task (兼容层)
-		task := taskV2ToTask(taskV2)
-		tasks = append(tasks, task)
+		// 转换Task为TaskWithMetrics (兼容层)
+		taskWithMetrics := taskToTaskWithMetrics(task)
+		tasks = append(tasks, taskWithMetrics)
 	}
 
 	return tasks, nil
@@ -35,45 +35,45 @@ func (sa *SystemAdapter) SubmitBatchTasks(requests []define.TaskBase) ([]*define
 
 // StopAlgorithm 停止算法 (兼容旧API)
 func (sa *SystemAdapter) StopAlgorithm() {
-	sa.SystemV2.Stop()
+	sa.System.Stop()
 }
 
 // ClearHistory 清除历史 (兼容旧API)
 func (sa *SystemAdapter) ClearHistory() {
-	sa.SystemV2.AssignmentManager.Clear()
-	sa.SystemV2.TimeSlot = 0
+	sa.System.AssignmentManager.Clear()
+	sa.System.TimeSlot = 0
 }
 
 // GetTasksWithPage 分页获取任务 (兼容旧API)
-func (sa *SystemAdapter) GetTasksWithPage(offset, limit int, userID *uint, status *define.TaskStatus) ([]*define.Task, int64) {
-	tasksV2, total := sa.SystemV2.TaskManager.GetTasksWithPage(offset, limit, userID, status)
+func (sa *SystemAdapter) GetTasksWithPage(offset, limit int, userID *uint, status *define.TaskStatus) ([]*define.TaskWithMetrics, int64) {
+	tasks, total := sa.System.TaskManager.GetTasksWithPage(offset, limit, userID, status)
 
-	// 转换TaskV2为Task
-	tasks := make([]*define.Task, len(tasksV2))
-	for i, tv2 := range tasksV2 {
-		tasks[i] = taskV2ToTask(tv2)
+	// 转换Task为TaskWithMetrics
+	tasksWithMetrics := make([]*define.TaskWithMetrics, len(tasks))
+	for i, t := range tasks {
+		tasksWithMetrics[i] = taskToTaskWithMetrics(t)
 		// 填充调度信息
-		sa.fillTaskAssignmentInfo(tasks[i])
+		sa.fillTaskAssignmentInfo(tasksWithMetrics[i])
 	}
 
-	return tasks, total
+	return tasksWithMetrics, total
 }
 
 // GetTaskByID 获取单个任务 (兼容旧API)
-func (sa *SystemAdapter) GetTaskByID(taskID string) *define.Task {
-	taskV2 := sa.SystemV2.TaskManager.GetTask(taskID)
-	if taskV2 == nil {
+func (sa *SystemAdapter) GetTaskByID(taskID string) *define.TaskWithMetrics {
+	task := sa.System.TaskManager.GetTask(taskID)
+	if task == nil {
 		return nil
 	}
 
-	task := taskV2ToTask(taskV2)
-	sa.fillTaskAssignmentInfo(task)
-	return task
+	taskWithMetrics := taskToTaskWithMetrics(task)
+	sa.fillTaskAssignmentInfo(taskWithMetrics)
+	return taskWithMetrics
 }
 
 // fillTaskAssignmentInfo 填充任务的分配信息 (TransferPath, MetricsHistory)
-func (sa *SystemAdapter) fillTaskAssignmentInfo(task *define.Task) {
-	history := sa.SystemV2.AssignmentManager.GetHistory(task.ID)
+func (sa *SystemAdapter) fillTaskAssignmentInfo(task *define.TaskWithMetrics) {
+	history := sa.System.AssignmentManager.GetHistory(task.ID)
 
 	if len(history) == 0 {
 		return
@@ -103,21 +103,21 @@ func (sa *SystemAdapter) fillTaskAssignmentInfo(task *define.Task) {
 	}
 }
 
-// taskV2ToTask 转换TaskV2为Task
-func taskV2ToTask(tv2 *define.TaskV2) *define.Task {
-	return &define.Task{
+// taskToTaskWithMetrics 转换Task为TaskWithMetrics
+func taskToTaskWithMetrics(t *define.Task) *define.TaskWithMetrics {
+	return &define.TaskWithMetrics{
 		TaskBase: define.TaskBase{
-			ID:        tv2.ID,
-			Name:      tv2.Name,
-			Type:      tv2.Type,
-			UserID:    tv2.UserID,
-			DataSize:  tv2.DataSize,
-			Priority:  tv2.Priority,
-			Status:    tv2.Status,
-			CreatedAt: tv2.CreatedAt,
+			ID:        t.ID,
+			Name:      t.Name,
+			Type:      t.Type,
+			UserID:    t.UserID,
+			DataSize:  t.DataSize,
+			Priority:  t.Priority,
+			Status:    t.Status,
+			CreatedAt: t.CreatedAt,
 		},
-		ScheduledTime: tv2.ScheduledTime,
-		CompleteTime:  tv2.CompleteTime,
+		ScheduledTime: t.ScheduledTime,
+		CompleteTime:  t.CompleteTime,
 	}
 }
 
@@ -161,25 +161,25 @@ func computeMetrics(assign *define.Assignment) define.TaskMetrics {
 
 // DeleteTask 删除任务 (兼容旧API)
 func (sa *SystemAdapter) DeleteTask(taskID string) error {
-	// SystemV2暂不支持删除,返回nil
+	// System暂不支持删除,返回nil
 	return nil
 }
 
-// 全局SystemV2实例
+// 全局System实例
 var (
-	globalSystemV2     *SystemV2
-	globalSystemV2Once sync.Once
+	globalSystem     *System
+	globalSystemOnce sync.Once
 )
 
-// GetSystemV2Instance 获取全局SystemV2实例
-func GetSystemV2Instance() *SystemV2 {
-	globalSystemV2Once.Do(func() {
-		globalSystemV2 = NewSystemV2()
+// GetSystemInstance 获取全局System实例
+func GetSystemInstance() *System {
+	globalSystemOnce.Do(func() {
+		globalSystem = NewSystem()
 	})
-	return globalSystemV2
+	return globalSystem
 }
 
 // GetAdaptedSystem 获取适配后的系统 (供API handler使用)
 func GetAdaptedSystem() *SystemAdapter {
-	return NewSystemAdapter(GetSystemV2Instance())
+	return NewSystemAdapter(GetSystemInstance())
 }

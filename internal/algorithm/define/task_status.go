@@ -25,8 +25,8 @@ type TaskBase struct {
 	CreatedAt time.Time  `json:"create_time,omitempty"`
 }
 
-// Task 为了兼容旧API,提供Task别名和扩展结构
-type Task struct {
+// TaskWithMetrics 为了兼容旧API,提供带性能指标的扩展Task结构
+type TaskWithMetrics struct {
 	TaskBase
 
 	// 调度结果 (从Assignment填充)

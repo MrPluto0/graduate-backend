@@ -11,8 +11,8 @@ import (
 	"time"
 )
 
-// SystemV2 重构后的系统 (使用简化的数据结构)
-type SystemV2 struct {
+// System 重构后的系统 (使用简化的数据结构)
+type System struct {
 	// 设备信息
 	Users   []*define.UserDevice
 	Comms   []*define.CommDevice
@@ -21,7 +21,7 @@ type SystemV2 struct {
 	LinkMap map[[2]uint]*models.Link // [源ID, 目标ID] -> Link
 
 	// 核心组件
-	TaskManager       *TaskManagerV2
+	TaskManager       *TaskManager
 	AssignmentManager *AssignmentManager
 	Scheduler         *Scheduler
 
@@ -33,9 +33,9 @@ type SystemV2 struct {
 	mutex         sync.RWMutex
 }
 
-// NewSystemV2 创建新系统实例 (替代单例模式)
-func NewSystemV2() *SystemV2 {
-	sys := &SystemV2{
+// NewSystem 创建新系统实例 (替代单例模式)
+func NewSystem() *System {
+	sys := &System{
 		Users:    make([]*define.UserDevice, 0),
 		Comms:    make([]*define.CommDevice, 0),
 		UserMap:  make(map[uint]*define.UserDevice),
@@ -48,7 +48,7 @@ func NewSystemV2() *SystemV2 {
 	sys.loadNodesFromDB()
 
 	// 初始化组件
-	sys.TaskManager = NewTaskManagerV2()
+	sys.TaskManager = NewTaskManager()
 	sys.AssignmentManager = NewAssignmentManager()
 	sys.Scheduler = NewScheduler(sys, sys.AssignmentManager)
 
@@ -57,7 +57,7 @@ func NewSystemV2() *SystemV2 {
 }
 
 // loadNodesFromDB 从数据库加载设备数据
-func (s *SystemV2) loadNodesFromDB() {
+func (s *System) loadNodesFromDB() {
 	db := database.GetDB()
 	nodeRepo := repository.NewNodeRepository(db)
 	linkRepo := repository.NewLinkRepository(db)
@@ -99,7 +99,7 @@ func (s *SystemV2) loadNodesFromDB() {
 }
 
 // SubmitTask 提交任务
-func (s *SystemV2) SubmitTask(userID uint, dataSize float64, taskType string) (*define.TaskV2, error) {
+func (s *System) SubmitTask(userID uint, dataSize float64, taskType string) (*define.Task, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -109,7 +109,7 @@ func (s *SystemV2) SubmitTask(userID uint, dataSize float64, taskType string) (*
 	}
 
 	// 创建任务
-	task := define.NewTaskV2(userID, dataSize, taskType)
+	task := define.NewTask(userID, dataSize, taskType)
 	s.TaskManager.AddTask(task)
 
 	// 启动调度循环
@@ -122,7 +122,7 @@ func (s *SystemV2) SubmitTask(userID uint, dataSize float64, taskType string) (*
 }
 
 // runSchedulingLoop 调度循环 (简化的单一职责流程)
-func (s *SystemV2) runSchedulingLoop() {
+func (s *System) runSchedulingLoop() {
 	ticker := time.NewTicker(1 * time.Second) // constant.Slot是float64,这里用1秒
 	defer ticker.Stop()
 
@@ -138,7 +138,7 @@ func (s *SystemV2) runSchedulingLoop() {
 }
 
 // executeOneSlot 执行一个时隙的调度
-func (s *SystemV2) executeOneSlot() {
+func (s *System) executeOneSlot() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -156,7 +156,7 @@ func (s *SystemV2) executeOneSlot() {
 	assignments := s.Scheduler.Schedule(s.TimeSlot, tasks)
 
 	// 3. 执行分配,计算传输和处理量
-	taskMap := make(map[string]*define.TaskV2)
+	taskMap := make(map[string]*define.Task)
 	for _, t := range tasks {
 		taskMap[t.ID] = t
 	}
@@ -174,7 +174,7 @@ func (s *SystemV2) executeOneSlot() {
 }
 
 // updateTaskStates 根据分配结果更新任务状态
-func (s *SystemV2) updateTaskStates(assignments []*define.Assignment) {
+func (s *System) updateTaskStates(assignments []*define.Assignment) {
 	for _, assign := range assignments {
 		task := s.TaskManager.GetTask(assign.TaskID)
 		if task == nil {
@@ -210,7 +210,7 @@ func (s *SystemV2) updateTaskStates(assignments []*define.Assignment) {
 }
 
 // Stop 停止调度
-func (s *SystemV2) Stop() {
+func (s *System) Stop() {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
@@ -221,7 +221,7 @@ func (s *SystemV2) Stop() {
 }
 
 // GetSystemInfo 获取系统信息
-func (s *SystemV2) GetSystemInfo() *define.SystemInfo {
+func (s *System) GetSystemInfo() *define.SystemInfo {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 

@@ -9,12 +9,12 @@ import (
 
 // Scheduler 任务调度器 (替代原来Graph.schedule的复杂逻辑)
 type Scheduler struct {
-	System            *SystemV2
+	System            *System
 	AssignmentManager *AssignmentManager
 }
 
 // NewScheduler 创建调度器
-func NewScheduler(system *SystemV2, assignmentManager *AssignmentManager) *Scheduler {
+func NewScheduler(system *System, assignmentManager *AssignmentManager) *Scheduler {
 	return &Scheduler{
 		System:            system,
 		AssignmentManager: assignmentManager,
@@ -22,7 +22,7 @@ func NewScheduler(system *SystemV2, assignmentManager *AssignmentManager) *Sched
 }
 
 // Schedule 为所有活跃任务创建本时隙的调度分配
-func (s *Scheduler) Schedule(timeSlot uint, tasks []*define.TaskV2) []*define.Assignment {
+func (s *Scheduler) Schedule(timeSlot uint, tasks []*define.Task) []*define.Assignment {
 	assignments := make([]*define.Assignment, 0, len(tasks))
 
 	for _, task := range tasks {
@@ -39,7 +39,7 @@ func (s *Scheduler) Schedule(timeSlot uint, tasks []*define.TaskV2) []*define.As
 }
 
 // scheduleTask 为单个任务创建调度分配
-func (s *Scheduler) scheduleTask(timeSlot uint, task *define.TaskV2) *define.Assignment {
+func (s *Scheduler) scheduleTask(timeSlot uint, task *define.Task) *define.Assignment {
 	sm := task.StateMachine()
 	lastAssign := s.AssignmentManager.GetLastAssignment(task.ID)
 
@@ -58,7 +58,7 @@ func (s *Scheduler) scheduleTask(timeSlot uint, task *define.TaskV2) *define.Ass
 }
 
 // reuseAssignment 复用上次的分配 (解决12→12路径问题!)
-func (s *Scheduler) reuseAssignment(timeSlot uint, task *define.TaskV2, lastAssign *define.Assignment) *define.Assignment {
+func (s *Scheduler) reuseAssignment(timeSlot uint, task *define.Task, lastAssign *define.Assignment) *define.Assignment {
 	queue := s.AssignmentManager.GetCurrentQueue(task.ID, task.DataSize)
 	processed := s.AssignmentManager.GetCumulativeProcessed(task.ID)
 
@@ -78,7 +78,7 @@ func (s *Scheduler) reuseAssignment(timeSlot uint, task *define.TaskV2, lastAssi
 }
 
 // findBestAssignment 为新任务寻找最佳分配 (简化的调度算法)
-func (s *Scheduler) findBestAssignment(timeSlot uint, task *define.TaskV2) *define.Assignment {
+func (s *Scheduler) findBestAssignment(timeSlot uint, task *define.Task) *define.Assignment {
 	user, ok := s.System.UserMap[task.UserID]
 	if !ok {
 		log.Printf("用户不存在: %d", task.UserID)
@@ -158,7 +158,7 @@ func (s *Scheduler) allocateResources(assignments []*define.Assignment) {
 }
 
 // ExecuteAssignments 执行分配,计算传输和处理的数据量
-func (s *Scheduler) ExecuteAssignments(assignments []*define.Assignment, tasks map[string]*define.TaskV2) {
+func (s *Scheduler) ExecuteAssignments(assignments []*define.Assignment, tasks map[string]*define.Task) {
 	for _, assign := range assignments {
 		task := tasks[assign.TaskID]
 		if task == nil {
