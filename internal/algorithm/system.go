@@ -93,6 +93,15 @@ func (s *System) loadNodesFromDB() {
 
 	for _, link := range links {
 		s.LinkMap[[2]uint{link.SourceID, link.TargetID}] = &link
+
+		// 填充用户设备的上行速度 (基站→用户的下行链路对应用户→基站的上行)
+		if user, exists := s.UserMap[link.TargetID]; exists {
+			if _, isComm := s.CommMap[link.SourceID]; isComm {
+				// 这是基站到用户的链路,用户上行速度通常与下行相同或略低
+				// TODO: 从link.Properties中解析bandwidth
+				user.Speed = 1.0 // Mbps (默认上行速率)
+			}
+		}
 	}
 
 	log.Printf("成功加载节点数据: %d个用户设备, %d个通信设备", len(s.Users), len(s.Comms))
