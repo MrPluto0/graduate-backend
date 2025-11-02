@@ -53,7 +53,7 @@ func (sm *TaskStateMachine) ToFailed(reason string) error {
 		return fmt.Errorf("cannot fail a completed task")
 	}
 	sm.task.Status = TaskFailed
-	// TODO: 添加失败原因字段到Task
+	sm.task.FailureReason = reason
 	return nil
 }
 

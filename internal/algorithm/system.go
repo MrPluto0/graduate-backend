@@ -180,9 +180,8 @@ func (s *System) buildFloydPaths() error {
 			continue
 		}
 
-		// 使用传输延迟作为边权重 (TODO: 从link.Properties解析)
-		// 简化假设: 固定延迟1.0
-		delay := 1.0
+		// 使用传输延迟作为边权重
+		delay := 1.0 // 默认延迟
 		if bandwidth, ok := link.Properties["bandwidth"].(float64); ok && bandwidth > 0 {
 			// 延迟 ≈ 1/带宽 (简化模型)
 			delay = 1.0 / bandwidth

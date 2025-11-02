@@ -2,7 +2,6 @@ package algorithm
 
 import (
 	"fmt"
-	"go-backend/internal/algorithm/define"
 	"log"
 )
 
