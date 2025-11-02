@@ -1,0 +1,251 @@
+package algorithm
+
+import (
+	"fmt"
+	"go-backend/internal/algorithm/define"
+	"go-backend/internal/models"
+	"go-backend/internal/repository"
+	"go-backend/pkg/database"
+	"log"
+	"sync"
+	"time"
+)
+
+// SystemV2 重构后的系统 (使用简化的数据结构)
+type SystemV2 struct {
+	// 设备信息
+	Users   []*define.UserDevice
+	Comms   []*define.CommDevice
+	UserMap map[uint]*define.UserDevice
+	CommMap map[uint]*define.CommDevice
+	LinkMap map[[2]uint]*models.Link // [源ID, 目标ID] -> Link
+
+	// 核心组件
+	Graph             *Graph
+	TaskManager       *TaskManagerV2
+	AssignmentManager *AssignmentManager
+	Scheduler         *Scheduler
+
+	// 运行状态
+	TimeSlot      uint
+	IsRunning     bool
+	IsInitialized bool
+	StopChan      chan bool
+	mutex         sync.RWMutex
+}
+
+// NewSystemV2 创建新系统实例 (替代单例模式)
+func NewSystemV2() *SystemV2 {
+	sys := &SystemV2{
+		Users:    make([]*define.UserDevice, 0),
+		Comms:    make([]*define.CommDevice, 0),
+		UserMap:  make(map[uint]*define.UserDevice),
+		CommMap:  make(map[uint]*define.CommDevice),
+		LinkMap:  make(map[[2]uint]*models.Link),
+		StopChan: make(chan bool, 1),
+	}
+
+	// 加载设备数据
+	sys.loadNodesFromDB()
+
+	// 初始化组件
+	sys.TaskManager = NewTaskManagerV2()
+	sys.AssignmentManager = NewAssignmentManager()
+	// Graph仍然使用旧System结构,暂时不初始化(简化版scheduler不需要Floyd)
+	// sys.Graph = NewGraph(sys)
+	sys.Scheduler = NewScheduler(sys, sys.AssignmentManager)
+
+	sys.IsInitialized = true
+	return sys
+}
+
+// loadNodesFromDB 从数据库加载设备数据
+func (s *SystemV2) loadNodesFromDB() {
+	db := database.GetDB()
+	nodeRepo := repository.NewNodeRepository(db)
+	linkRepo := repository.NewLinkRepository(db)
+
+	// 加载节点
+	nodes, err := nodeRepo.List(nil)
+	if err != nil {
+		log.Fatalf("加载节点失败: %v", err)
+	}
+
+	for _, node := range nodes {
+		if node.NodeType == models.NodeTypeUser {
+			user := &define.UserDevice{
+				Node:  node,
+				Speed: 0, // 稍后从Link中填充
+			}
+			s.Users = append(s.Users, user)
+			s.UserMap[node.ID] = user
+		} else if node.NodeType == models.NodeTypeComm {
+			comm := &define.CommDevice{
+				Node: node,
+			}
+			s.Comms = append(s.Comms, comm)
+			s.CommMap[node.ID] = comm
+		}
+	}
+
+	// 加载链路
+	links, err := linkRepo.List(nil)
+	if err != nil {
+		log.Fatalf("加载链路失败: %v", err)
+	}
+
+	for _, link := range links {
+		s.LinkMap[[2]uint{link.SourceID, link.TargetID}] = &link
+	}
+
+	log.Printf("成功加载节点数据: %d个用户设备, %d个通信设备", len(s.Users), len(s.Comms))
+}
+
+// SubmitTask 提交任务
+func (s *SystemV2) SubmitTask(userID uint, dataSize float64, taskType string) (*define.TaskV2, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	// 验证用户
+	if _, exists := s.UserMap[userID]; !exists {
+		return nil, fmt.Errorf("用户不存在: %d", userID)
+	}
+
+	// 创建任务
+	task := define.NewTaskV2(userID, dataSize, taskType)
+	s.TaskManager.AddTask(task)
+
+	// 启动调度循环
+	if !s.IsRunning {
+		s.IsRunning = true
+		go s.runSchedulingLoop()
+	}
+
+	return task, nil
+}
+
+// runSchedulingLoop 调度循环 (简化的单一职责流程)
+func (s *SystemV2) runSchedulingLoop() {
+	ticker := time.NewTicker(1 * time.Second) // constant.Slot是float64,这里用1秒
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.StopChan:
+			log.Println("调度循环停止")
+			return
+		case <-ticker.C:
+			s.executeOneSlot()
+		}
+	}
+}
+
+// executeOneSlot 执行一个时隙的调度
+func (s *SystemV2) executeOneSlot() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.TimeSlot++
+
+	// 1. 获取活跃任务
+	tasks := s.TaskManager.GetActiveTasks()
+	if len(tasks) == 0 {
+		log.Println("所有任务已完成，停止调度")
+		s.IsRunning = false
+		return
+	}
+
+	// 2. 创建调度分配
+	assignments := s.Scheduler.Schedule(s.TimeSlot, tasks)
+
+	// 3. 执行分配,计算传输和处理量
+	taskMap := make(map[string]*define.TaskV2)
+	for _, t := range tasks {
+		taskMap[t.ID] = t
+	}
+	s.Scheduler.ExecuteAssignments(assignments, taskMap)
+
+	// 4. 更新任务状态
+	s.updateTaskStates(assignments)
+
+	// 5. 保存分配历史
+	for _, assign := range assignments {
+		s.AssignmentManager.AddAssignment(assign)
+	}
+
+	log.Printf("时隙 %d: 调度了 %d 个任务", s.TimeSlot, len(assignments))
+}
+
+// updateTaskStates 根据分配结果更新任务状态
+func (s *SystemV2) updateTaskStates(assignments []*define.Assignment) {
+	for _, assign := range assignments {
+		task := s.TaskManager.GetTask(assign.TaskID)
+		if task == nil {
+			continue
+		}
+
+		sm := task.StateMachine()
+
+		// Pending → Queued (首次分配)
+		if sm.IsPending() {
+			if err := sm.ToQueued(); err != nil {
+				log.Printf("状态转换失败 (Pending→Queued): %v", err)
+			}
+			continue
+		}
+
+		// Queued → Computing (开始处理数据)
+		if sm.IsQueued() && assign.ProcessedData > 0 {
+			if err := sm.ToComputing(); err != nil {
+				log.Printf("状态转换失败 (Queued→Computing): %v", err)
+			}
+		}
+
+		// Computing → Completed (数据处理完成)
+		if sm.IsComputing() || sm.IsQueued() {
+			if assign.CumulativeProcessed >= task.DataSize-0.001 {
+				if err := sm.ToCompleted(); err != nil {
+					log.Printf("状态转换失败 (→Completed): %v", err)
+				}
+			}
+		}
+	}
+}
+
+// Stop 停止调度
+func (s *SystemV2) Stop() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	if s.IsRunning {
+		s.StopChan <- true
+		s.IsRunning = false
+	}
+}
+
+// GetSystemInfo 获取系统信息
+func (s *SystemV2) GetSystemInfo() *define.SystemInfo {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	// 收集传输路径
+	transferPaths := make(map[string][]uint)
+	for taskID := range s.TaskManager.Tasks {
+		lastAssign := s.AssignmentManager.GetLastAssignment(taskID)
+		if lastAssign != nil && len(lastAssign.Path) > 0 {
+			transferPaths[taskID] = lastAssign.Path
+		}
+	}
+
+	return &define.SystemInfo{
+		UserCount:      len(s.Users),
+		CommCount:      len(s.Comms),
+		IsRunning:      s.IsRunning,
+		IsInitialized:  s.IsInitialized,
+		TimeSlot:       s.TimeSlot,
+		TransferPath:   transferPaths,
+		TaskCount:      s.TaskManager.Count(),
+		ActiveTasks:    len(s.TaskManager.GetActiveTasks()),
+		CompletedTasks: s.TaskManager.CountCompleted(),
+	}
+}
