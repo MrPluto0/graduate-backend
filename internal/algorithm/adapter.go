@@ -159,10 +159,14 @@ func computeMetrics(assign *define.Assignment) define.TaskMetrics {
 	return metrics
 }
 
-// DeleteTask 删除任务 (兼容旧API)
+// DeleteTask 删除任务 (兼容旧API) - 实际实现为取消任务
 func (sa *SystemAdapter) DeleteTask(taskID string) error {
-	// System暂不支持删除,返回nil
-	return nil
+	return sa.System.CancelTask(taskID)
+}
+
+// CancelTask 取消任务
+func (sa *SystemAdapter) CancelTask(taskID string) error {
+	return sa.System.CancelTask(taskID)
 }
 
 // 全局System实例

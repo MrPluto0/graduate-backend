@@ -1,8 +1,10 @@
 package algorithm
 
 import (
+	"fmt"
 	"go-backend/internal/algorithm/define"
 	"sync"
+	"time"
 )
 
 // TaskManager 简化的任务管理器 (只管理Task本身,不管理调度状态)
@@ -138,4 +140,57 @@ func (tm *TaskManager) CountCompleted() int {
 		}
 	}
 	return count
+}
+
+// CancelTask 取消任务
+func (tm *TaskManager) CancelTask(taskID string) error {
+	tm.mutex.Lock()
+	defer tm.mutex.Unlock()
+
+	task := tm.Tasks[taskID]
+	if task == nil {
+		return fmt.Errorf("任务不存在: %s", taskID)
+	}
+
+	sm := task.StateMachine()
+
+	// 只能取消活跃任务
+	if !sm.IsActive() {
+		return fmt.Errorf("任务已结束,无法取消 (状态: %s)", sm.GetStatusName())
+	}
+
+	// 标记为已取消
+	now := time.Now()
+	task.CancelledAt = &now
+	task.FailureReason = "用户取消"
+
+	// 转换到Failed状态
+	if err := sm.ToFailed("用户取消"); err != nil {
+		return fmt.Errorf("状态转换失败: %w", err)
+	}
+
+	return nil
+}
+
+// CheckTimeouts 检查超时任务并标记为失败
+func (tm *TaskManager) CheckTimeouts() []string {
+	tm.mutex.Lock()
+	defer tm.mutex.Unlock()
+
+	timedOutTasks := make([]string, 0)
+
+	for _, task := range tm.TaskList {
+		if task.IsTimedOut() && task.StateMachine().IsActive() {
+			// 标记超时
+			task.FailureReason = fmt.Sprintf("超时 (限制: %v, 实际: %v)",
+				task.Timeout, task.GetElapsedTime())
+
+			// 转换到Failed状态
+			if err := task.StateMachine().ToFailed(task.FailureReason); err == nil {
+				timedOutTasks = append(timedOutTasks, task.ID)
+			}
+		}
+	}
+
+	return timedOutTasks
 }

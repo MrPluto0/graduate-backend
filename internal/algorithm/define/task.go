@@ -20,8 +20,13 @@ type Task struct {
 	Status TaskStatus `json:"status"`
 
 	// 时间戳
-	ScheduledTime time.Time `json:"scheduled_time,omitempty"` // 首次分配时间
-	CompleteTime  time.Time `json:"complete_time,omitempty"`  // 完成时间
+	ScheduledTime time.Time  `json:"scheduled_time,omitempty"` // 首次分配时间
+	CompleteTime  time.Time  `json:"complete_time,omitempty"`  // 完成时间
+	CancelledAt   *time.Time `json:"cancelled_at,omitempty"`   // 取消时间
+
+	// 超时和取消
+	Timeout       time.Duration `json:"timeout,omitempty"`        // 超时时长 (0表示无超时)
+	FailureReason string        `json:"failure_reason,omitempty"` // 失败原因
 }
 
 // NewTask 创建新任务
@@ -39,4 +44,29 @@ func NewTask(userID uint, dataSize float64, taskType string) *Task {
 // StateMachine 获取任务的状态机
 func (t *Task) StateMachine() *TaskStateMachine {
 	return NewTaskStateMachine(t)
+}
+
+// IsCancelled 检查任务是否已取消
+func (t *Task) IsCancelled() bool {
+	return t.CancelledAt != nil
+}
+
+// IsTimedOut 检查任务是否超时
+func (t *Task) IsTimedOut() bool {
+	if t.Timeout == 0 {
+		return false // 无超时限制
+	}
+	if t.Status == TaskCompleted || t.Status == TaskFailed {
+		return false // 已结束的任务不算超时
+	}
+	elapsed := time.Since(t.CreatedAt)
+	return elapsed > t.Timeout
+}
+
+// GetElapsedTime 获取任务已运行时间
+func (t *Task) GetElapsedTime() time.Duration {
+	if !t.CompleteTime.IsZero() {
+		return t.CompleteTime.Sub(t.CreatedAt)
+	}
+	return time.Since(t.CreatedAt)
 }

@@ -45,7 +45,12 @@ func NewSystem() *System {
 	}
 
 	// 加载设备数据
-	sys.loadNodesFromDB()
+	if err := sys.loadNodesFromDB(); err != nil {
+		log.Printf("⚠️  系统初始化失败: %v", err)
+		// 不返回nil,而是返回部分初始化的系统(允许降级运行)
+		sys.IsInitialized = false
+		return sys
+	}
 
 	// 初始化组件
 	sys.TaskManager = NewTaskManager()
@@ -53,11 +58,12 @@ func NewSystem() *System {
 	sys.Scheduler = NewScheduler(sys, sys.AssignmentManager)
 
 	sys.IsInitialized = true
+	log.Println("✓ 系统初始化完成")
 	return sys
 }
 
 // loadNodesFromDB 从数据库加载设备数据
-func (s *System) loadNodesFromDB() {
+func (s *System) loadNodesFromDB() error {
 	db := database.GetDB()
 	nodeRepo := repository.NewNodeRepository(db)
 	linkRepo := repository.NewLinkRepository(db)
@@ -65,7 +71,8 @@ func (s *System) loadNodesFromDB() {
 	// 加载节点
 	nodes, err := nodeRepo.List(nil)
 	if err != nil {
-		log.Fatalf("加载节点失败: %v", err)
+		log.Printf("❌ 加载节点失败: %v", err)
+		return fmt.Errorf("加载节点失败: %w", err)
 	}
 
 	for _, node := range nodes {
@@ -88,7 +95,8 @@ func (s *System) loadNodesFromDB() {
 	// 加载链路
 	links, err := linkRepo.List(nil)
 	if err != nil {
-		log.Fatalf("加载链路失败: %v", err)
+		log.Printf("❌ 加载链路失败: %v", err)
+		return fmt.Errorf("加载链路失败: %w", err)
 	}
 
 	for _, link := range links {
@@ -104,7 +112,8 @@ func (s *System) loadNodesFromDB() {
 		}
 	}
 
-	log.Printf("成功加载节点数据: %d个用户设备, %d个通信设备", len(s.Users), len(s.Comms))
+	log.Printf("✓ 成功加载节点数据: %d个用户设备, %d个通信设备", len(s.Users), len(s.Comms))
+	return nil
 }
 
 // SubmitTask 提交任务
@@ -112,19 +121,36 @@ func (s *System) SubmitTask(userID uint, dataSize float64, taskType string) (*de
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	// 检查系统是否已初始化
+	if !s.IsInitialized {
+		log.Printf("❌ 系统未初始化,无法提交任务")
+		return nil, fmt.Errorf("系统未初始化")
+	}
+
 	// 验证用户
 	if _, exists := s.UserMap[userID]; !exists {
+		log.Printf("❌ 提交任务失败: 用户 %d 不存在", userID)
 		return nil, fmt.Errorf("用户不存在: %d", userID)
+	}
+
+	// 验证数据大小
+	if dataSize <= 0 {
+		log.Printf("❌ 提交任务失败: 无效的数据大小 %.2f", dataSize)
+		return nil, fmt.Errorf("无效的数据大小: %.2f", dataSize)
 	}
 
 	// 创建任务
 	task := define.NewTask(userID, dataSize, taskType)
 	s.TaskManager.AddTask(task)
 
+	log.Printf("✓ 任务 %s 已提交 (用户:%d, 数据:%.2fMB, 类型:%s)",
+		task.ID, userID, dataSize, taskType)
+
 	// 启动调度循环
 	if !s.IsRunning {
 		s.IsRunning = true
 		go s.runSchedulingLoop()
+		log.Println("✓ 调度循环已启动")
 	}
 
 	return task, nil
@@ -156,7 +182,10 @@ func (s *System) executeOneSlot() {
 	currentSlot := s.TimeSlot
 	s.mutex.Unlock()
 
-	// 2. 获取活跃任务（TaskManager有自己的锁）
+	// 2. 检查超时任务
+	s.checkTimeouts()
+
+	// 3. 获取活跃任务（TaskManager有自己的锁）
 	tasks := s.TaskManager.GetActiveTasks()
 	if len(tasks) == 0 {
 		log.Println("所有任务已完成，停止调度")
@@ -239,6 +268,27 @@ func (s *System) updateTaskStates(assignments []*define.Assignment) {
 	}
 }
 
+// CancelTask 取消任务
+func (s *System) CancelTask(taskID string) error {
+	// TaskManager.CancelTask 内部有锁保护
+	err := s.TaskManager.CancelTask(taskID)
+	if err != nil {
+		log.Printf("❌ 取消任务失败: %v", err)
+		return err
+	}
+
+	log.Printf("✓ 任务 %s 已取消", taskID)
+	return nil
+}
+
+// checkTimeouts 在每个时隙检查超时任务
+func (s *System) checkTimeouts() {
+	timedOutTasks := s.TaskManager.CheckTimeouts()
+	if len(timedOutTasks) > 0 {
+		log.Printf("⚠️  检测到 %d 个超时任务: %v", len(timedOutTasks), timedOutTasks)
+	}
+}
+
 // Stop 停止调度
 func (s *System) Stop() {
 	s.mutex.Lock()
@@ -247,6 +297,7 @@ func (s *System) Stop() {
 	if s.IsRunning {
 		s.StopChan <- true
 		s.IsRunning = false
+		log.Println("✓ 调度循环已停止")
 	}
 }
 
