@@ -36,6 +36,7 @@ type System struct {
 	TimeSlot      uint
 	IsRunning     bool
 	IsInitialized bool
+	CurrentState  *define.StateMetrics // 当前系统状态指标
 	StopChan      chan bool
 	mutex         sync.RWMutex
 }
@@ -50,6 +51,7 @@ func NewSystem() *System {
 		LinkMap:       make(map[[2]uint]*models.Link),
 		NodeIDToIndex: make(map[uint]int),
 		IndexToNodeID: make(map[int]uint),
+		CurrentState:  define.NewStateMetrics(),
 		StopChan:      make(chan bool, 1),
 	}
 
@@ -352,6 +354,9 @@ func (s *System) executeOneSlot() {
 		s.AssignmentManager.AddAssignment(assign)
 	}
 
+	// 7. 更新系统状态指标（供前端Dashboard使用）
+	s.updateStateMetrics(assignments, tasks)
+
 	log.Printf("时隙 %d: 调度了 %d 个任务", currentSlot, len(assignments))
 }
 
@@ -467,6 +472,14 @@ func (s *System) GetSystemInfo() *define.SystemInfo {
 		}
 	}
 
+	// 复制当前状态（避免并发问题）
+	s.mutex.RLock()
+	currentState := s.CurrentState
+	if currentState == nil {
+		currentState = define.NewStateMetrics()
+	}
+	s.mutex.RUnlock()
+
 	return &define.SystemInfo{
 		UserCount:      userCount,
 		CommCount:      commCount,
@@ -477,5 +490,72 @@ func (s *System) GetSystemInfo() *define.SystemInfo {
 		TaskCount:      s.TaskManager.Count(),
 		ActiveTasks:    len(s.TaskManager.GetActiveTasks()),
 		CompletedTasks: s.TaskManager.CountCompleted(),
+		State:          currentState,
 	}
+}
+
+// updateStateMetrics 更新系统全局状态指标
+func (s *System) updateStateMetrics(assignments []*define.Assignment, tasks []*define.Task) {
+	state := define.NewStateMetrics()
+
+	// 1. 统计每个Comm的队列长度（从assignments）
+	commQueues := make(map[uint]float64)
+	for _, assign := range assignments {
+		// QueueData表示本时隙结束后该任务在队列中的数据量
+		queueData := assign.QueueData + assign.TransferredData - assign.ProcessedData
+		if queueData > 0 {
+			commQueues[assign.CommID] += queueData
+			state.TotalQueue += queueData
+		}
+	}
+
+	// 转换为string key (前端期望)
+	for commID, queue := range commQueues {
+		state.CommQueues[fmt.Sprintf("%d", commID)] = queue
+	}
+
+	// 2. 从Scheduler计算本时隙的延迟和能耗（使用简化估算）
+	for _, assign := range assignments {
+		// 传输延迟估算: 数据量 / 平均速率
+		avgSpeed := 1.0
+		if len(assign.Speeds) > 0 {
+			for _, speed := range assign.Speeds {
+				avgSpeed += speed
+			}
+			avgSpeed /= float64(len(assign.Speeds))
+		}
+		transferDelay := assign.TransferredData / avgSpeed
+
+		// 计算延迟估算: 处理数据量 * Rho / (资源比例 * C)
+		computeDelay := assign.ProcessedData * 0.1 / (assign.ResourceFraction * 10.0)
+
+		// 能耗估算
+		transferEnergy := assign.TransferredData * 0.5
+		computeEnergy := assign.ProcessedData * 1.0
+
+		state.TransferDelay += transferDelay
+		state.ComputeDelay += computeDelay
+		state.TransferEnergy += transferEnergy
+		state.ComputeEnergy += computeEnergy
+	}
+
+	state.TotalDelay = state.TransferDelay + state.ComputeDelay
+	state.TotalEnergy = state.TransferEnergy + state.ComputeEnergy
+
+	// 3. 计算系统负载 (活跃任务数 / 通信设备数)
+	if len(s.Comms) > 0 {
+		state.Load = float64(len(tasks)) / float64(len(s.Comms))
+	}
+
+	// 4. 计算Cost (简化版: 加权和)
+	state.Cost = state.TotalDelay*1.0 + state.TotalEnergy*0.1 + state.TotalQueue*0.05
+
+	// 5. 计算Drift和Penalty (简化版: 基于队列和延迟)
+	state.Drift = state.TotalQueue * 0.5
+	state.Penalty = state.TotalDelay + state.TotalEnergy*0.1
+
+	// 6. 原子更新CurrentState
+	s.mutex.Lock()
+	s.CurrentState = state
+	s.mutex.Unlock()
 }

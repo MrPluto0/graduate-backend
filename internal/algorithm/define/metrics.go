@@ -32,5 +32,5 @@ type SystemInfo struct {
 	TaskCount      int               `json:"task_count"`      // 总任务数
 	ActiveTasks    int               `json:"active_tasks"`    // 活跃任务数
 	CompletedTasks int               `json:"completed_tasks"` // 已完成任务数
-	State          interface{}       `json:"state,omitempty"` // 当前状态（可选）
+	State          interface{}       `json:"state"` // 当前状态
 }
