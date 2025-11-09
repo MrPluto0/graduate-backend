@@ -187,7 +187,25 @@ func (s *System) buildFloydPaths() error {
 			delay = 1.0 / bandwidth
 		}
 
+		// 正向边
 		adjMatrix[srcIdx][dstIdx] = delay
+
+		// 自动添加反向边 (对称链路)
+		// 1. Comm ↔ Comm (无人机/基站之间): 双向对称
+		_, srcIsComm := s.CommMap[srcID]
+		_, dstIsComm := s.CommMap[dstID]
+		if srcIsComm && dstIsComm {
+			adjMatrix[dstIdx][srcIdx] = delay
+		}
+
+		// 2. User ↔ Comm (用户设备与基站): 双向但上行速率不同
+		_, srcIsUser := s.UserMap[srcID]
+		_, dstIsUser := s.UserMap[dstID]
+		if (srcIsComm && dstIsUser) || (srcIsUser && dstIsComm) {
+			// 上行延迟假设与下行相同 (简化模型)
+			// 实际上行速率更低,但延迟差异不大
+			adjMatrix[dstIdx][srcIdx] = delay
+		}
 	}
 
 	// 运行Floyd算法
