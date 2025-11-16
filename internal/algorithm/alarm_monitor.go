@@ -42,6 +42,9 @@ type AlarmMonitor struct {
 	// 告警去重: 相同类型的告警在一定时间内只产生一次
 	lastAlarmTime map[string]time.Time
 	cooldown      time.Duration // 告警冷却时间
+
+	// 活跃告警记录: 用于自动解决
+	activeAlarms map[string]uint // alarmKey -> alarmID
 }
 
 // NewAlarmMonitor 创建告警监控器
@@ -50,6 +53,7 @@ func NewAlarmMonitor(alarmService *service.AlarmService) *AlarmMonitor {
 		alarmService:  alarmService,
 		thresholds:    DefaultAlarmThresholds,
 		lastAlarmTime: make(map[string]time.Time),
+		activeAlarms:  make(map[string]uint),
 		cooldown:      5 * time.Minute, // 同类型告警5分钟内只触发一次
 	}
 }
@@ -72,47 +76,60 @@ func (m *AlarmMonitor) CheckSystemState(state *define.StateMetrics, tasks []*def
 	m.mutex.RUnlock()
 
 	// 1. 检查系统延迟
+	delayKey := "performance_delay"
 	if state.TotalDelay > thresholds.MaxDelay {
 		m.createAlarm(
-			"performance_delay",
+			delayKey,
 			"系统延迟过高",
 			models.AlarmEventPerformance,
 			fmt.Sprintf("系统总延迟 %.2f 秒超过阈值 %.2f 秒 (传输延迟: %.2f秒, 计算延迟: %.2f秒)",
 				state.TotalDelay, thresholds.MaxDelay, state.TransferDelay, state.ComputeDelay),
 		)
+	} else {
+		// 延迟恢复正常，自动解决告警
+		m.autoResolveAlarm(delayKey)
 	}
 
 	// 2. 检查系统能耗
+	energyKey := "performance_energy"
 	if state.TotalEnergy > thresholds.MaxEnergy {
 		m.createAlarm(
-			"performance_energy",
+			energyKey,
 			"系统能耗过高",
 			models.AlarmEventPerformance,
 			fmt.Sprintf("系统总能耗 %.2f 焦耳超过阈值 %.2f 焦耳 (传输能耗: %.2f J, 计算能耗: %.2f J)",
 				state.TotalEnergy, thresholds.MaxEnergy, state.TransferEnergy, state.ComputeEnergy),
 		)
+	} else {
+		m.autoResolveAlarm(energyKey)
 	}
 
 	// 3. 检查系统负载
+	loadKey := "performance_load"
 	if state.Load > thresholds.MaxLoad {
 		m.createAlarm(
-			"performance_load",
+			loadKey,
 			"系统负载过高",
 			models.AlarmEventPerformance,
 			fmt.Sprintf("系统负载 %.2f 倍超过阈值 %.2f 倍，可能导致任务处理缓慢",
 				state.Load, thresholds.MaxLoad),
 		)
+	} else {
+		m.autoResolveAlarm(loadKey)
 	}
 
 	// 4. 检查队列积压
+	queueKey := "network_queue"
 	if state.TotalQueue > thresholds.MaxQueueData {
 		m.createAlarm(
-			"network_queue",
+			queueKey,
 			"网络队列积压严重",
 			models.AlarmEventNetwork,
 			fmt.Sprintf("总队列数据量 %.2f MB超过阈值 %.2f MB，通信设备处理能力不足",
 				state.TotalQueue/1e6, thresholds.MaxQueueData/1e6),
 		)
+	} else {
+		m.autoResolveAlarm(queueKey)
 	}
 
 	// 5. 检查单个通信设备队列
@@ -168,9 +185,32 @@ func (m *AlarmMonitor) createAlarm(alarmKey, name string, eventType models.Alarm
 		return
 	}
 
-	// 记录告警时间
+	// 记录告警时间和ID
 	m.lastAlarmTime[alarmKey] = time.Now()
-	log.Printf("[AlarmMonitor] 告警已创建: %s - %s", name, description)
+	m.activeAlarms[alarmKey] = alarm.ID
+	log.Printf("[AlarmMonitor] 告警已创建: ID=%d, %s - %s", alarm.ID, name, description)
+}
+
+// autoResolveAlarm 自动解决告警（当状态恢复正常时）
+func (m *AlarmMonitor) autoResolveAlarm(alarmKey string) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	// 检查是否有对应的活跃告警
+	alarmID, exists := m.activeAlarms[alarmKey]
+	if !exists {
+		return
+	}
+
+	// 尝试解决告警
+	if err := m.alarmService.ResolveAlarm(alarmID); err != nil {
+		log.Printf("[AlarmMonitor] 自动解决告警失败: ID=%d, %v", alarmID, err)
+		return
+	}
+
+	// 从活跃告警中移除
+	delete(m.activeAlarms, alarmKey)
+	log.Printf("[AlarmMonitor] 告警已自动解决: ID=%d, key=%s", alarmID, alarmKey)
 }
 
 // CleanupOldAlarms 清理旧的告警时间记录（定期清理，避免内存泄漏）
