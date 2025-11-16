@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"go-backend/internal/models"
 	"go-backend/internal/service"
 	"go-backend/pkg/utils"
 	"strconv"

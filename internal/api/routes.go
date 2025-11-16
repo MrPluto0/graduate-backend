@@ -77,12 +77,12 @@ func SetupRoutes(router *gin.Engine) {
 		// 告警管理路由
 		alarms := public.Group("/alarms")
 		{
-			alarms.GET("", alarmHandler.GetAlarms)                    // 获取告警列表
-			alarms.GET("/stats", alarmHandler.GetAlarmStats)          // 获取告警统计
-			alarms.GET("/:id", alarmHandler.GetAlarm)                 // 获取单个告警
-			alarms.POST("/:id/resolve", alarmHandler.ResolveAlarm)    // 解决告警
-			alarms.POST("/:id/reactivate", alarmHandler.ReactivateAlarm) // 重新激活告警
-			alarms.DELETE("/:id", alarmHandler.DeleteAlarm)           // 删除告警
+			alarms.GET("", alarmHandler.GetAlarms)                         // 获取告警列表
+			alarms.GET("/stats", alarmHandler.GetAlarmStats)               // 获取告警统计
+			alarms.GET("/:id", alarmHandler.GetAlarm)                      // 获取单个告警
+			alarms.POST("/:id/resolve", alarmHandler.ResolveAlarm)         // 解决告警
+			alarms.POST("/:id/reactivate", alarmHandler.ReactivateAlarm)   // 重新激活告警
+			alarms.DELETE("/:id", alarmHandler.DeleteAlarm)                // 删除告警
 			alarms.POST("/batch/resolve", alarmHandler.BatchResolveAlarms) // 批量解决
 			alarms.POST("/batch/delete", alarmHandler.BatchDeleteAlarms)   // 批量删除
 		}
