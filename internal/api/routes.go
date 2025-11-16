@@ -1,6 +1,7 @@
 package api
 
 import (
+	"go-backend/internal/algorithm"
 	"go-backend/internal/api/handlers"
 	"go-backend/internal/api/middleware"
 	"go-backend/internal/repository"
@@ -28,6 +29,11 @@ func SetupRoutes(router *gin.Engine) {
 	networkService := service.NewNetworkService(nodeRepo, linkRepo)
 	monitorService := service.NewMonitorService()
 	alarmService := service.NewAlarmService(alarmRepo)
+
+	// 初始化告警监控器并注入到算法系统
+	alarmMonitor := algorithm.NewAlarmMonitor(alarmService)
+	system := algorithm.GetSystemInstance()
+	system.SetAlarmMonitor(alarmMonitor)
 
 	// 初始化处理器
 	authHandler := handlers.NewAuthHandler(userService)

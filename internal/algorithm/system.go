@@ -32,6 +32,7 @@ type System struct {
 	TaskManager       *TaskManager
 	AssignmentManager *AssignmentManager
 	Scheduler         *Scheduler
+	AlarmMonitor      *AlarmMonitor // 告警监控器
 
 	// 运行状态
 	TimeSlot      uint
@@ -79,6 +80,14 @@ func NewSystem() *System {
 	sys.IsInitialized = true
 	log.Println("✓ 系统初始化完成")
 	return sys
+}
+
+// SetAlarmMonitor 设置告警监控器（依赖注入）
+func (s *System) SetAlarmMonitor(monitor *AlarmMonitor) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.AlarmMonitor = monitor
+	log.Println("✓ 告警监控器已启用")
 }
 
 // loadNodesFromDB 从数据库加载设备数据
@@ -354,6 +363,24 @@ func (s *System) executeOneSlot() {
 
 	// 7. 更新系统状态指标（供前端Dashboard使用）
 	s.updateStateMetrics(assignments, tasks)
+
+	// 8. 检查系统状态并产生告警（如果告警监控器已启用）
+	s.mutex.RLock()
+	alarmMonitor := s.AlarmMonitor
+	currentState := s.CurrentState
+	s.mutex.RUnlock()
+
+	if alarmMonitor != nil && currentState != nil {
+		// 检查系统状态告警
+		alarmMonitor.CheckSystemState(currentState, tasks)
+
+		// 检查任务失败告警
+		for _, task := range tasks {
+			if task.Status == define.TaskFailed {
+				alarmMonitor.CheckTaskFailures(task)
+			}
+		}
+	}
 
 	log.Printf("时隙 %d: 调度了 %d 个任务", currentSlot, len(assignments))
 }
