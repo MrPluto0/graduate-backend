@@ -1,6 +1,7 @@
 package algorithm
 
 import (
+	"go-backend/internal/algorithm/constant"
 	"go-backend/internal/algorithm/define"
 	"sync"
 )
@@ -91,11 +92,17 @@ func (sa *SystemAdapter) fillTaskAssignmentInfo(task *define.TaskWithMetrics) {
 	// 转换Assignment历史为SlotMetrics (兼容旧格式)
 	task.MetricsHistory = make([]define.SlotMetrics, len(history))
 	for i, assign := range history {
+		// QueuedData应该是时隙结束后的队列数据量
+		queuedDataAfterSlot := assign.QueueData + assign.TransferredData - assign.ProcessedData
+		if queuedDataAfterSlot < 0 {
+			queuedDataAfterSlot = 0 // 防止负数
+		}
+
 		task.MetricsHistory[i] = define.SlotMetrics{
 			TimeSlot:            assign.TimeSlot,
 			TransferredData:     assign.TransferredData,
 			ProcessedData:       assign.ProcessedData,
-			QueuedData:          assign.QueueData,
+			QueuedData:          queuedDataAfterSlot,
 			CumulativeProcessed: assign.CumulativeProcessed,
 			ResourceFraction:    assign.ResourceFraction,
 			TaskMetrics:         computeMetrics(assign),
@@ -132,25 +139,22 @@ func computeMetrics(assign *define.Assignment) define.TaskMetrics {
 		}
 	}
 
-	// 计算延迟 (简化版本,使用常量)
+	// 计算延迟: delay = ProcessedData × Rho / (ResourceFraction × C)
 	if assign.ResourceFraction > 0 && assign.ProcessedData > 0 {
-		// 这里需要导入constant包,暂时用估算值
-		// metrics.ComputeDelay = assign.ProcessedData * Rho / (assign.ResourceFraction * C)
-		metrics.ComputeDelay = assign.ProcessedData * 1e-6 // 简化估算
+		metrics.ComputeDelay = assign.ProcessedData * constant.Rho / (assign.ResourceFraction * constant.C)
 	}
 
-	// 传输能耗
+	// 传输能耗: energy = Power × TransmissionTime
 	for i, power := range assign.Powers {
 		if i < len(assign.Speeds) && assign.Speeds[i] > 0 && assign.TransferredData > 0 {
-			segmentDelay := assign.TransferredData / assign.Speeds[i]
-			metrics.TransferEnergy += power * segmentDelay
+			transmissionTime := assign.TransferredData / assign.Speeds[i]
+			metrics.TransferEnergy += power * transmissionTime
 		}
 	}
 
-	// 计算能耗 (简化估算)
-	// Energy = ResourceFraction × Kappa × C³ × Slot
+	// 计算能耗: energy = ResourceFraction × Kappa × C³ × Slot
 	if assign.ResourceFraction > 0 {
-		metrics.ComputeEnergy = assign.ResourceFraction * 1e-12 // 简化估算
+		metrics.ComputeEnergy = assign.ResourceFraction * constant.Kappa * constant.C * constant.C * constant.C * constant.Slot
 	}
 
 	metrics.TotalDelay = metrics.TransferDelay + metrics.ComputeDelay

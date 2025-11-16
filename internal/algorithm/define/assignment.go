@@ -20,7 +20,8 @@ type Assignment struct {
 	ProcessedData   float64 `json:"processed_data"`   // 本时隙处理的数据量
 
 	// 累计进度
-	CumulativeProcessed float64 `json:"cumulative_processed"` // 累计已处理数据量
+	CumulativeTransferred float64 `json:"cumulative_transferred"` // 累计已传输数据量
+	CumulativeProcessed   float64 `json:"cumulative_processed"`   // 累计已处理数据量
 }
 
 // NewAssignment 创建新的分配记录

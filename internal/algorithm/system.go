@@ -2,6 +2,7 @@ package algorithm
 
 import (
 	"fmt"
+	"go-backend/internal/algorithm/constant"
 	"go-backend/internal/algorithm/define"
 	"go-backend/internal/algorithm/utils"
 	"go-backend/internal/models"
@@ -23,9 +24,9 @@ type System struct {
 	LinkMap map[[2]uint]*models.Link // [源ID, 目标ID] -> Link
 
 	// 网络拓扑
-	NodeIDToIndex map[uint]int        // NodeID -> Floyd矩阵索引
-	IndexToNodeID map[int]uint        // Floyd矩阵索引 -> NodeID
-	FloydResult   *utils.FloydResult  // Floyd最短路径结果
+	NodeIDToIndex map[uint]int       // NodeID -> Floyd矩阵索引
+	IndexToNodeID map[int]uint       // Floyd矩阵索引 -> NodeID
+	FloydResult   *utils.FloydResult // Floyd最短路径结果
 
 	// 核心组件
 	TaskManager       *TaskManager
@@ -120,15 +121,12 @@ func (s *System) loadNodesFromDB() error {
 	for _, link := range links {
 		s.LinkMap[[2]uint{link.SourceID, link.TargetID}] = &link
 
-		// 填充用户设备的上行速度 (基站→用户的下行链路对应用户→基站的上行)
+		// 填充用户设备的上行速度
 		if user, exists := s.UserMap[link.TargetID]; exists {
-			if _, isComm := s.CommMap[link.SourceID]; isComm {
-				// 这是基站到用户的链路,解析带宽
-				uplink := 1.0 // 默认上行速率 (Mbps)
-				if bw, ok := link.Properties["bandwidth"].(float64); ok && bw > 0 {
-					uplink = bw * 0.8 // 上行速率通常为下行的80%
-				}
-				user.Speed = uplink
+			if comm, isComm := s.CommMap[link.SourceID]; isComm {
+				// 计算用户到基站的上行速率 (bits/s)
+				dist := utils.Distance(user.X, user.Y, comm.X, comm.Y)
+				user.Speed = utils.TransferSpeed(constant.P_u, dist)
 			}
 		}
 	}
@@ -472,11 +470,17 @@ func (s *System) GetSystemInfo() *define.SystemInfo {
 		}
 	}
 
+	// 获取活跃任务数量
+	activeTaskCount := len(s.TaskManager.GetActiveTasks())
+
 	// 复制当前状态（避免并发问题）
+	// 如果没有活跃任务，返回空状态
 	s.mutex.RLock()
-	currentState := s.CurrentState
-	if currentState == nil {
-		currentState = define.NewStateMetrics()
+	var currentState interface{}
+	if activeTaskCount > 0 && s.CurrentState != nil {
+		currentState = s.CurrentState
+	} else {
+		currentState = nil
 	}
 	s.mutex.RUnlock()
 
@@ -488,7 +492,7 @@ func (s *System) GetSystemInfo() *define.SystemInfo {
 		TimeSlot:       timeSlot,
 		TransferPath:   transferPaths,
 		TaskCount:      s.TaskManager.Count(),
-		ActiveTasks:    len(s.TaskManager.GetActiveTasks()),
+		ActiveTasks:    activeTaskCount,
 		CompletedTasks: s.TaskManager.CountCompleted(),
 		State:          currentState,
 	}
@@ -526,12 +530,27 @@ func (s *System) updateStateMetrics(assignments []*define.Assignment, tasks []*d
 		}
 		transferDelay := assign.TransferredData / avgSpeed
 
-		// 计算延迟估算: 处理数据量 * Rho / (资源比例 * C)
-		computeDelay := assign.ProcessedData * 0.1 / (assign.ResourceFraction * 10.0)
+		// 计算延迟: ProcessedData × Rho / (ResourceFraction × C)
+		computeDelay := 0.0
+		if assign.ResourceFraction > 0 && assign.ProcessedData > 0 {
+			computeDelay = assign.ProcessedData * constant.Rho / (assign.ResourceFraction * constant.C)
+		}
 
-		// 能耗估算
-		transferEnergy := assign.TransferredData * 0.5
-		computeEnergy := assign.ProcessedData * 1.0
+		// 传输能耗: Power × TransmissionTime
+		transferEnergy := 0.0
+		for i, speed := range assign.Speeds {
+			if speed > 0 && assign.TransferredData > 0 {
+				transmissionTime := assign.TransferredData / speed
+				power := 0.5 // 默认功率
+				if i < len(assign.Powers) {
+					power = assign.Powers[i]
+				}
+				transferEnergy += power * transmissionTime
+			}
+		}
+
+		// 计算能耗: ResourceFraction × Kappa × C³ × Slot
+		computeEnergy := assign.ResourceFraction * constant.Kappa * constant.C * constant.C * constant.C * constant.Slot
 
 		state.TransferDelay += transferDelay
 		state.ComputeDelay += computeDelay

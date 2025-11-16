@@ -60,20 +60,22 @@ func (s *Scheduler) scheduleTask(timeSlot uint, task *define.Task) *define.Assig
 // reuseAssignment 复用上次的分配 (解决12→12路径问题!)
 func (s *Scheduler) reuseAssignment(timeSlot uint, task *define.Task, lastAssign *define.Assignment) *define.Assignment {
 	queue := s.AssignmentManager.GetCurrentQueue(task.ID, task.DataSize)
-	processed := s.AssignmentManager.GetCumulativeProcessed(task.ID)
+	transferred := lastAssign.CumulativeTransferred
+	processed := lastAssign.CumulativeProcessed
 
 	return &define.Assignment{
-		TimeSlot:            timeSlot,
-		TaskID:              task.ID,
-		CommID:              lastAssign.CommID,              // 复用通信设备
-		Path:                lastAssign.Path,                // 复用路径!
-		Speeds:              lastAssign.Speeds,              // 复用速率
-		Powers:              lastAssign.Powers,              // 复用功率
-		QueueData:           queue,                          // 当前队列
-		CumulativeProcessed: processed,                      // 累计进度
-		ResourceFraction:    0,                              // 稍后由allocateResources计算
-		TransferredData:     0,                              // 稍后由executeAssignment计算
-		ProcessedData:       0,                              // 稍后由executeAssignment计算
+		TimeSlot:              timeSlot,
+		TaskID:                task.ID,
+		CommID:                lastAssign.CommID,    // 复用通信设备
+		Path:                  lastAssign.Path,      // 复用路径!
+		Speeds:                lastAssign.Speeds,    // 复用速率
+		Powers:                lastAssign.Powers,    // 复用功率
+		QueueData:             queue,                // 当前队列
+		CumulativeTransferred: transferred,          // 累计传输量
+		CumulativeProcessed:   processed,            // 累计处理量
+		ResourceFraction:      0,                    // 稍后由allocateResources计算
+		TransferredData:       0,                    // 稍后由executeAssignment计算
+		ProcessedData:         0,                    // 稍后由executeAssignment计算
 	}
 }
 
@@ -227,10 +229,13 @@ func (s *Scheduler) ExecuteAssignments(assignments []*define.Assignment, tasks m
 		}
 		transferred := userSpeed * constant.Slot // bits
 
-		// 剩余待传输数据
-		remaining := task.DataSize - assign.CumulativeProcessed
+		// 剩余待传输数据 (用累计传输量计算)
+		remaining := task.DataSize - assign.CumulativeTransferred
 		if transferred > remaining {
 			transferred = remaining
+		}
+		if transferred < 0 {
+			transferred = 0
 		}
 
 		// 计算处理量
@@ -244,6 +249,7 @@ func (s *Scheduler) ExecuteAssignments(assignments []*define.Assignment, tasks m
 		// 更新分配
 		assign.TransferredData = transferred
 		assign.ProcessedData = processed
+		assign.CumulativeTransferred += transferred
 		assign.CumulativeProcessed += processed
 
 		// 更新队列 (下一时隙的队列 = 当前队列 + 传输 - 处理)
