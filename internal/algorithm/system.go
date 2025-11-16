@@ -29,10 +29,12 @@ type System struct {
 	FloydResult   *utils.FloydResult // Floyd最短路径结果
 
 	// 核心组件
-	TaskManager       *TaskManager
-	AssignmentManager *AssignmentManager
-	Scheduler         *Scheduler
-	AlarmMonitor      *AlarmMonitor // 告警监控器
+	TaskManager        *TaskManager
+	AssignmentManager  *AssignmentManager
+	Scheduler          *Scheduler          // 简单调度器 (已弃用)
+	LyapunovScheduler  *LyapunovScheduler  // Lyapunov负载均衡调度器
+	AlarmMonitor       *AlarmMonitor       // 告警监控器
+	UseLyapunov        bool                // 是否使用Lyapunov调度器 (默认true)
 
 	// 运行状态
 	TimeSlot      uint
@@ -76,9 +78,11 @@ func NewSystem() *System {
 	sys.TaskManager = NewTaskManager()
 	sys.AssignmentManager = NewAssignmentManager()
 	sys.Scheduler = NewScheduler(sys, sys.AssignmentManager)
+	sys.LyapunovScheduler = NewLyapunovScheduler(sys, sys.AssignmentManager)
+	sys.UseLyapunov = true // 默认使用Lyapunov调度器
 
 	sys.IsInitialized = true
-	log.Println("✓ 系统初始化完成")
+	log.Println("✓ 系统初始化完成 (使用Lyapunov调度器)")
 	return sys
 }
 
@@ -343,15 +347,29 @@ func (s *System) executeOneSlot() {
 		return
 	}
 
-	// 3. 创建调度分配（调度计算不需要持有System锁）
-	assignments := s.Scheduler.Schedule(currentSlot, tasks)
+	// 3. 创建调度分配（根据配置选择调度器）
+	var assignments []*define.Assignment
+	s.mutex.RLock()
+	useLyapunov := s.UseLyapunov
+	s.mutex.RUnlock()
+
+	if useLyapunov {
+		assignments = s.LyapunovScheduler.Schedule(currentSlot, tasks)
+	} else {
+		assignments = s.Scheduler.Schedule(currentSlot, tasks)
+	}
 
 	// 4. 执行分配,计算传输和处理量（不需要System锁）
 	taskMap := make(map[string]*define.Task)
 	for _, t := range tasks {
 		taskMap[t.ID] = t
 	}
-	s.Scheduler.ExecuteAssignments(assignments, taskMap)
+
+	if useLyapunov {
+		s.LyapunovScheduler.ExecuteAssignments(assignments, taskMap)
+	} else {
+		s.Scheduler.ExecuteAssignments(assignments, taskMap)
+	}
 
 	// 5. 更新任务状态（TaskManager内部有锁）
 	s.updateTaskStates(assignments)
@@ -468,6 +486,37 @@ func (s *System) Stop() {
 		s.IsRunning = false
 		log.Println("✓ 调度循环已停止")
 	}
+}
+
+// SetSchedulerType 设置调度器类型
+// schedulerType: "lyapunov" 或 "simple"
+func (s *System) SetSchedulerType(schedulerType string) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	switch schedulerType {
+	case "lyapunov":
+		s.UseLyapunov = true
+		log.Println("✓ 切换到Lyapunov负载均衡调度器")
+		return nil
+	case "simple":
+		s.UseLyapunov = false
+		log.Println("✓ 切换到简单贪心调度器")
+		return nil
+	default:
+		return fmt.Errorf("未知的调度器类型: %s (支持: lyapunov, simple)", schedulerType)
+	}
+}
+
+// GetSchedulerType 获取当前调度器类型
+func (s *System) GetSchedulerType() string {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	if s.UseLyapunov {
+		return "lyapunov"
+	}
+	return "simple"
 }
 
 // GetSystemInfo 获取系统信息
