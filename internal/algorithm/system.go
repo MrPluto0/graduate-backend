@@ -340,9 +340,17 @@ func (s *System) executeOneSlot() {
 	// 3. 获取活跃任务（TaskManager有自己的锁）
 	tasks := s.TaskManager.GetActiveTasks()
 	if len(tasks) == 0 {
-		log.Println("所有任务已完成，停止调度")
 		s.mutex.Lock()
-		s.IsRunning = false
+		if s.IsRunning {
+			log.Println("所有任务已完成，停止调度")
+			s.IsRunning = false
+			// 发送停止信号，终止ticker循环
+			select {
+			case s.StopChan <- true:
+			default:
+				// StopChan已满，忽略
+			}
+		}
 		s.mutex.Unlock()
 		return
 	}

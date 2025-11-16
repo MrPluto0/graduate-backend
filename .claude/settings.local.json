@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/Docs/研究生毕设/项目/frontend/src/services/api/**)",
+      "Read(//d/Docs/研究生毕设/项目/frontend/**)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat(alarm): 实现完整的告警管理和批量操作功能\n\n## 新增功能\n\n1. **告警API函数** (`src/services/api/alarm.ts`)\n   - fetchAlarmDetail - 获取告警详情\n   - resolveAlarm - 解决告警\n   - reactivateAlarm - 重新激活告警\n   - deleteAlarm - 删除告警\n   - batchResolveAlarms - 批量解决\n   - batchDeleteAlarms - 批量删除\n   - fetchAlarmStats - 获取告警统计\n\n2. **告警管理页面增强** (`src/views/device/alarm/index.vue`)\n   - 操作列：每行显示\"解决\"和\"删除\"按钮\n   - 行选择：支持多选告警\n   - 批量操作工具栏：批量解决、批量删除\n   - 状态区分：已解决的告警显示为灰色禁用按钮\n   - 确认对话框：所有删除和解决操作都有二次确认\n\n3. **类型定义** (`src/typings/api.d.ts`)\n   - AlarmStats 接口定义\n\n## UI改进\n\n- 更新事件类型映射（system, network, hardware, performance, security）\n- 更新状态映射（pending, resolved）\n- 批量操作提示（显示已选择项数量）\n- 操作成功/失败消息提示\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(curl:*)",
+      "Bash(python:*)",
+      "Bash(tasklist:*)",
+      "Bash(cat:*)",
+      "Bash(git commit:*)",
+      "Bash(node test_lyapunov_load_balance.js:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
